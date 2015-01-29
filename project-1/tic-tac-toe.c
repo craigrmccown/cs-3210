@@ -30,64 +30,27 @@ static char procfs_buffer[PROCFS_MAX_SIZE];
 static unsigned long procfs_buffer_size = 0;
 
 /** 
- * This function is called then the /proc file is read
+ * called when file is closed
  *
  */
-static int procfile_read(
-	char *buffer,
-	char **buffer_location,
-	off_t offset,
-	int buffer_length,
-	int *eof,
-	void *data
-) {
-	int ret;
+static int procfile_close(struct inode *, struct file *) {
+	int ret = 0;
 
-	printk(KERN_INFO "procfile_read (/proc/%s) called\n", PROCFS_NAME);
-
-	if (offset > 0) {
-		/* we have finished to read, return 0 */
-		ret  = 0;
-	} else {
-		/* fill the buffer, return the buffer size */
-		memcpy(buffer, procfs_buffer, procfs_buffer_size);
-		ret = procfs_buffer_size;
-	}
+	printk(KERN_INFO "procfile_close (/proc/%s) called\n", PROCFS_NAME);
 
 	return ret;
 }
 
 /**
- * This function is called with the /proc file is written
- *
- */
-int procfile_write(struct file *file, const char *buffer, unsigned long count,
-		   void *data)
-{
-	/* get buffer size */
-	procfs_buffer_size = count;
-	if (procfs_buffer_size > PROCFS_MAX_SIZE ) {
-		procfs_buffer_size = PROCFS_MAX_SIZE;
-	}
-
-	/* write data to the buffer */
-	if ( copy_from_user(procfs_buffer, buffer, procfs_buffer_size) ) {
-		return -EFAULT;
-	}
-
-	return procfs_buffer_size;
-}
-
-/**
- * The struct that sets up read and write callbacks
+ * defines file operations such as read/write/open/close callbacks
  *
  */
 static const struct file_operations file_ops = {
-	.read = procfile_read,
+	.read = procfile_close,
 };
 
 /**
- * This function is called when the module is loaded
+ * initializes module
  *
  */
 int init_module()
@@ -107,7 +70,7 @@ int init_module()
 }
 
 /**
- * This function is called when the module is unloaded
+ * cleans up when module is unloaded
  *
  */
 void cleanup_module()
