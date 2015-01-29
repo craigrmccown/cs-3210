@@ -7,7 +7,6 @@
 #include <linux/kernel.h>	/* We're doing kernel work */
 #include <linux/proc_fs.h>	/* Necessary because we use the proc fs */
 #include <asm/uaccess.h>	/* for copy_from_user */
-#include <tic-tac-toe.h>
 
 #define PROCFS_MAX_SIZE		1024
 #define PROCFS_NAME 		"buffer1k"
@@ -30,23 +29,18 @@ static char procfs_buffer[PROCFS_MAX_SIZE];
  */
 static unsigned long procfs_buffer_size = 0;
 
-/**
- * The struct that sets up read and write callbacks
- *
- */
-static const struct file_operations file_ops = {
-	.read		= procfile_read
-}
-
 /** 
  * This function is called then the /proc file is read
  *
  */
-int 
-procfile_read(char *buffer,
-	      char **buffer_location,
-	      off_t offset, int buffer_length, int *eof, void *data)
-{
+static int procfile_read(
+	char *buffer,
+	char **buffer_location,
+	off_t offset,
+	int buffer_length,
+	int *eof,
+	void *data
+) {
 	int ret;
 
 	printk(KERN_INFO "procfile_read (/proc/%s) called\n", PROCFS_NAME);
@@ -85,13 +79,21 @@ int procfile_write(struct file *file, const char *buffer, unsigned long count,
 }
 
 /**
+ * The struct that sets up read and write callbacks
+ *
+ */
+static const struct file_operations file_ops = {
+	.read = procfile_read,
+};
+
+/**
  * This function is called when the module is loaded
  *
  */
 int init_module()
 {
 	/* create the /proc file */
-	proc_entry = proc_create(PROCFS_NAME, 0644, NULL, file_ops);
+	proc_entry = proc_create(PROCFS_NAME, 0644, NULL, &file_ops);
 
 	if (proc_entry == NULL) {
 		remove_proc_entry(PROCFS_NAME, &proc_root);
