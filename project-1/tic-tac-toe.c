@@ -7,6 +7,7 @@
 #include <linux/kernel.h>	/* We're doing kernel work */
 #include <linux/proc_fs.h>	/* Necessary because we use the proc fs */
 #include <asm/uaccess.h>	/* for copy_from_user */
+#include <tic-tac-toe.h>
 
 #define PROCFS_MAX_SIZE		1024
 #define PROCFS_NAME 		"buffer1k"
