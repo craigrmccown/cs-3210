@@ -1,25 +1,38 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
+#include <asm/uaccess.h>
 
-#define BUFFER_SIZE = 256
+#define BUFFER_SIZE 256
 
 static const char *proc_name = "tic-tac-toe";
 static struct proc_dir_entry *proc_entry;
 static char proc_buffer[BUFFER_SIZE];
 
 ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	int ret = 0;
-	printk(KERN_INFO "tic-tac-toe proc file read\n");
-	return ret;
+	int proc_buffer_len;
+
+	proc_buffer_len = strlen(proc_buffer);
+
+	if (*offset + count > proc_buffer_len) {
+		count = proc_buffer_len - *offset;
+	}
+
+	if (copy_to_user(buffer + *offset, proc_buffer, count)) {
+		count = -EFAULT;
+	} 
+
+	return count;
 }
 
 ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	printk(KERN_INFO "tic-tac-toe proc file write\n");
+	printk(KERN_INFO "tic-tac-toe proc file write: %s \n", buffer);
 
-	if (copy_from_user(proc_buffer, buffer, count)) {
-		ret = -EFAULT;
+	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
+		return -EFAULT;
 	} else {
+		proc_buffer[count] = 0;
+		printk(KERN_INFO "written to buffer: %s \n", proc_buffer);
 		return count;
 	}
 }
