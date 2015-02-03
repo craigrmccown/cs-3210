@@ -33,7 +33,7 @@ static unsigned long procfs_buffer_size = 0;
  * called when file is closed
  *
  */
-static int procfile_close(struct inode *, struct file *) {
+static int procfile_close(struct inode* inode, struct file* file) {
 	int ret = 0;
 
 	printk(KERN_INFO "procfile_close (/proc/%s) called\n", PROCFS_NAME);
