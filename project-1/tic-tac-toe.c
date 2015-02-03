@@ -11,7 +11,16 @@ ssize_t read_tic_tac_toe(struct file *f, char *buffer, size_t count, loff_t *off
 	return ret;
 }
 
-struct file_operations proc_fops = { read: read_tic_tac_toe };
+ssize_t write_tic_tac_toe(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+	int ret = 0;
+	printk(KERN_INFO "tic-tac-toe proc file write");
+	return ret;
+}
+
+struct file_operations proc_fops = {
+	read: read_tic_tac_toe,
+	write: write_tic_tac_toe
+};
 
 int init_tic_tac_toe(void) {
 	int ret = 0;
