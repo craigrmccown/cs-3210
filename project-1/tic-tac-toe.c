@@ -7,13 +7,13 @@ static struct proc_dir_entry *proc_entry;
 
 ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	int ret = 0;
-	printk(KERN_INFO "tic-tac-toe proc file read");
+	printk(KERN_INFO "tic-tac-toe proc file read\n");
 	return ret;
 }
 
 ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	int ret = 0;
-	printk(KERN_INFO "tic-tac-toe proc file write");
+	printk(KERN_INFO "tic-tac-toe proc file write\n");
 	return ret;
 }
 
@@ -25,7 +25,7 @@ struct file_operations proc_fops = {
 int ttt_init(void) {
 	int ret = 0;
 
-	proc_entry = proc_create(proc_name, 0, NULL, &proc_fops);
+	proc_entry = proc_create(proc_name, 438, NULL, &proc_fops);
 
 	if (proc_entry == NULL) {
 		printk(KERN_ERR "tic-tac-toe module not loaded, not enough available memory.\n");
