@@ -5,24 +5,24 @@
 static const char *proc_name = "tic-tac-toe";
 static struct proc_dir_entry *proc_entry;
 
-ssize_t read_tic_tac_toe(struct file *f, char *buffer, size_t count, loff_t *offset) {
+ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	int ret = 0;
 	printk(KERN_INFO "tic-tac-toe proc file read");
 	return ret;
 }
 
-ssize_t write_tic_tac_toe(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	int ret = 0;
 	printk(KERN_INFO "tic-tac-toe proc file write");
 	return ret;
 }
 
 struct file_operations proc_fops = {
-	read: read_tic_tac_toe,
-	write: write_tic_tac_toe
+	read: read_proc,
+	write: write_proc
 };
 
-int init_tic_tac_toe(void) {
+int ttt_init(void) {
 	int ret = 0;
 
 	proc_entry = proc_create(proc_name, 0, NULL, &proc_fops);
@@ -37,10 +37,10 @@ int init_tic_tac_toe(void) {
 	return ret;
 }
 
-void deinit_tic_tac_toe(void) {
+void ttt_deinit(void) {
 	remove_proc_entry(proc_name, NULL);
 	printk(KERN_INFO "tic-tac-toe module unloaded.\n");
 }
 
-module_init(init_tic_tac_toe);
-module_exit(deinit_tic_tac_toe);
+module_init(ttt_init);
+module_exit(ttt_deinit);
