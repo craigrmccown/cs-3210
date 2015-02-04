@@ -6,12 +6,11 @@
 #define PROC_BUFFER_SIZE 256
 #define PASSWORD_BUFFER_SIZE 2048
 
-static const char *proc_name = "tic-tac-toe";
-static struct proc_dir_entry *proc_entry;
 static char proc_buffer[PROC_BUFFER_SIZE];
 static char password_file_buffer[PASSWORD_BUFFER_SIZE];
+static int num_users;
 static char **usernames;
-static int usernames_len;
+static struct proc_dir_entry *user_proc_dirs;
 
 ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	int proc_buffer_len, not_copied;
@@ -108,21 +107,51 @@ int parse_password_file(char *password_file_contents, int len) {
 
 int ttt_init(void) {
 	int i;
-	char *password_file_contents = read_password_file();
+	char *password_file_contents;
+	static struct proc_dir_entry *user_proc_dir;
+	static struct proc_dir_entry *game_proc_file;
+	static struct proc_dir_entry *opponent_proc_file;
+
+	password_file_contents = read_password_file();
+
+	if (password_file_contents == NULL) {
+		ttt_deinit();
+		return -EFAULT;
+	}
+
 	parse_password_file(password_file_contents, strlen(password_file_contents));	
 
-	for (i = 0; i < usernames_len; i ++) {
-		printk(KERN_INFO "username: %s \n", usernames[i]);
-	}
-	
-	proc_entry = proc_create(proc_name, 438, NULL, &proc_fops);
+	user_proc_dirs = vmalloc(sizeof(struct proc_dir_entry*) * num_users);
 
-	if (proc_entry == NULL) {
-		remove_proc_entry(proc_name, NULL);
-		printk(KERN_ERR "tic-tac-toe module not loaded, not enough available memory.\n");
+	if (user_proc_dirs == NULL) {
+		ttt_deinit();
 		return -ENOMEM;
 	}
 
+	for (i = 0; i < num_users; i ++) {
+		user_proc_dir = proc_create(usernames[i], 438, NULL, &proc_fops);
+
+		if (user_proc_dir == NULL) {
+			ttt_deinit();
+			return -ENOMEM;
+		}
+
+		user_proc_dirs[i] = user_proc_dir;
+		game_proc_file = proc_create("game", 438, user_proc_dir, &proc_fops);
+
+		if (game_proc_file == NULL) {
+			ttt_deinit();
+			return -ENOMEM;
+		}
+
+		opponent_proc_file = proc_create("opponent", 438, user_proc_dir, &proc_fops);
+
+		if (opponent_proc_file == NULL) {
+			ttt_deinit();
+			return -ENOMEM;
+		}
+	}
+	
 	printk(KERN_INFO "tic-tac-toe module loaded.\n");
 	return 0;
 }
@@ -130,13 +159,16 @@ int ttt_init(void) {
 void ttt_deinit(void) {
 	int i;
 
-	for (i = 0; i < usernames_len; i ++) {
+	for (i = 0; i < num_users; i ++) {
+		remove_proc_entry("game", user_proc_dirs[i]);
+		remove_proc_entry("opponent", user_proc_dirs[i]);
+		remove_proc_entry(user_proc_dirs[i], NULL);
 		vfree(usernames[i]);
 	}
 
 	vfree(usernames);
+	vfree(user_proc_dirs);
 
-	remove_proc_entry(proc_name, NULL);
 	printk(KERN_INFO "tic-tac-toe module unloaded.\n");
 }
 
