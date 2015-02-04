@@ -13,6 +13,8 @@ ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	int proc_buffer_len, not_copied;
 	loff_t next_offset;
 
+	printk(KERN_INFO "read_proc called");
+
 	proc_buffer_len = strlen(proc_buffer + *offset);
 
 	if (*offset + count > proc_buffer_len) {
@@ -28,19 +30,13 @@ ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 }
 
 ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	int remaining_bytes, not_copied;
-	loff_t next_offset;
+	printk(KERN_INFO "write_proc called");
 
-	remaining_bytes = strlen(buffer + *offset);
-
-	if (*offset + remaining_bytes > BUFFER_SIZE) {
-		remaining_bytes = BUFFER_SIZE - *offset;
+	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
+		return -EFAULT;
 	}
 
-	not_copied = copy_from_user(proc_buffer + *offset, buffer + *offset, remaining_bytes);
-	next_offset = *offset + (remaining_bytes - not_copied);
-
-	return remaining_bytes - not_copied;
+	return count;
 }
 
 struct file_operations proc_fops = {
