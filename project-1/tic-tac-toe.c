@@ -68,14 +68,16 @@ char *read_password_file(void) {
 	return password_file_buffer;
 }
 
-char **parse_password_file(char *password_file_contents, int len) {
+int parse_password_file(char *password_file_contents, int len) {
 	int i, line_count, num_usernames, current_char;
 	char *username;
+
+	printk(KERN_INFO "file contents: %s \n", password_file_contents);
 
 	line_count = 0;
 
 	for (i = 0; i < len; i ++) {
-		if (password_file_contents[i] == "\n") {
+		if (strcmp(password_file_contents + i, "\n")) {
 			line_count = line_count + 1;
 		}
 	}
@@ -83,19 +85,24 @@ char **parse_password_file(char *password_file_contents, int len) {
 	usernames = vmalloc(sizeof(char*) * line_count);
 	username = vmalloc(sizeof(char) * 25);
 	num_usernames = 0;
+	current_char = 0;
 
 	for (i = 0; i < len; i ++) {
-		if (password_file_contents[i] == ":") {
+		printk(KERN_INFO "processing character: %c \n", password_file_contents[i]);
+		if (strcmp(&password_file_contents[i], ":")) {
+			printk(KERN_INFO "colon found");
 			current_char = -1;
 			username[current_char] = "\n";
 		} else if (current_char == -1) {
-			if (password_file_contents[i] == "\n") {
+			if (strcmp(&password_file_contents[i], "\n")) {
 				usernames[num_usernames] = username;
+				printk(KERN_INFO "1 username: %s \n", username);
 				username = vmalloc(sizeof(char) * 25);
 				current_char = 0;
 				num_usernames = num_usernames + 1;
 			}
 		} else {
+			printk(KERN_INFO "char found: %c \n", password_file_contents[i]);
 			username[current_char] = password_file_contents[i];
 			current_char = current_char + 1;
 		}
@@ -110,7 +117,7 @@ int ttt_init(void) {
 	parse_password_file(password_file_contents, strlen(password_file_contents));	
 
 	for (i = 0; i < usernames_len; i ++) {
-		printk(KERN_INFO "username: %s \n", *usernames[i]);
+		printk(KERN_INFO "username: %s \n", usernames[i]);
 	}
 	
 	proc_entry = proc_create(proc_name, 438, NULL, &proc_fops);
@@ -129,10 +136,10 @@ void ttt_deinit(void) {
 	int i;
 
 	for (i = 0; i < usernames_len; i ++) {
-		free(usernames[i]);
+		vfree(usernames[i]);
 	}
 
-	free(usernames);
+	vfree(usernames);
 
 	remove_proc_entry(proc_name, NULL);
 	printk(KERN_INFO "tic-tac-toe module unloaded.\n");
