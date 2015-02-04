@@ -10,31 +10,37 @@ static struct proc_dir_entry *proc_entry;
 static char proc_buffer[BUFFER_SIZE];
 
 ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	int proc_buffer_len;
+	int proc_buffer_len, not_copied;
+	loff_t next_offset;
 
-	proc_buffer_len = strlen(proc_buffer);
+	proc_buffer_len = strlen(proc_buffer + *offset);
 
 	if (*offset + count > proc_buffer_len) {
 		count = proc_buffer_len - *offset;
 	}
 
-	if (copy_to_user(buffer + *offset, proc_buffer, count)) {
-		count = -EFAULT;
-	} 
+	not_copied = copy_to_user(buffer + *offset, proc_buffer + *offset, count);
 
-	return count;
+	next_offset = *offset + (count - not_copied);
+	*offset = next_offset;
+
+	return count - not_copied;
 }
 
 ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	printk(KERN_INFO "tic-tac-toe proc file write: %s \n", buffer);
+	int remaining_bytes, not_copied;
+	loff_t next_offset;
 
-	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
-		return -EFAULT;
-	} else {
-		proc_buffer[count] = 0;
-		printk(KERN_INFO "written to buffer: %s \n", proc_buffer);
-		return count;
+	remaining_bytes = strlen(buffer + *offset);
+
+	if (*offset + remaining_bytes > BUFFER_SIZE) {
+		remaining_bytes = BUFFER_SIZE - *offset;
 	}
+
+	not_copied = copy_from_user(proc_buffer + *offset, buffer + *offset, remaining_bytes);
+	next_offset = *offset + (remaining_bytes - not_copied);
+
+	return remaining_bytes - not_copied;
 }
 
 struct file_operations proc_fops = {
