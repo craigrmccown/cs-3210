@@ -10,10 +10,8 @@ static struct proc_dir_entry *proc_entry;
 static char proc_buffer[BUFFER_SIZE];
 
 ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	int proc_buffer_len, not_copied;
-	loff_t next_offset;
-
-	printk(KERN_INFO "read_proc called");
+int proc_buffer_len, not_copied;
+loff_t next_offset;
 
 	proc_buffer_len = strlen(proc_buffer);
 
@@ -21,22 +19,25 @@ ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 		count = proc_buffer_len - *offset;
 	}
 
-	not_copied = copy_to_user(buffer + *offset, proc_buffer + *offset, count);
-
+	if (not_copied=copy_to_user(buffer + *offset, proc_buffer, count)) {
+		count = -EFAULT;
+	} 
 	next_offset = *offset + (count - not_copied);
 	*offset = next_offset;
 
-	return count - not_copied;
+	return count-not_copied;
 }
 
 ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	printk(KERN_INFO "write_proc called");
+printk(KERN_INFO "tic-tac-toe proc file write: %s \n", buffer);
 
 	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
 		return -EFAULT;
+	} else {
+		proc_buffer[count] = 0;
+		printk(KERN_INFO "written to buffer: %s \n", proc_buffer);
+		return count;
 	}
-
-	return count;
 }
 
 struct file_operations proc_fops = {
