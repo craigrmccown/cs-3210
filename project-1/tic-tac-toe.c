@@ -15,7 +15,7 @@ ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 
 	printk(KERN_INFO "read_proc called");
 
-	proc_buffer_len = strlen(proc_buffer + *offset);
+	proc_buffer_len = strlen(proc_buffer);
 
 	if (*offset + count > proc_buffer_len) {
 		count = proc_buffer_len - *offset;
