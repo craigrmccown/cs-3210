@@ -72,12 +72,10 @@ int parse_password_file(char *password_file_contents, int len) {
 	int i, line_count, num_usernames, current_char;
 	char *username;
 
-	printk(KERN_INFO "file contents: %s \n", password_file_contents);
-
 	line_count = 0;
 
 	for (i = 0; i < len; i ++) {
-		if (strcmp(password_file_contents + i, "\n")) {
+		if (password_file_contents[i] == '\n') {
 			line_count = line_count + 1;
 		}
 	}
@@ -88,21 +86,18 @@ int parse_password_file(char *password_file_contents, int len) {
 	current_char = 0;
 
 	for (i = 0; i < len; i ++) {
-		printk(KERN_INFO "processing character: %c \n", password_file_contents[i]);
-		if (strcmp(&password_file_contents[i], ":")) {
-			printk(KERN_INFO "colon found");
-			current_char = -1;
-			username[current_char] = "\n";
-		} else if (current_char == -1) {
-			if (strcmp(&password_file_contents[i], "\n")) {
+		if (current_char == -1) {
+			if (password_file_contents[i] == '\n') {
 				usernames[num_usernames] = username;
 				printk(KERN_INFO "1 username: %s \n", username);
 				username = vmalloc(sizeof(char) * 25);
 				current_char = 0;
 				num_usernames = num_usernames + 1;
 			}
+		} else if (password_file_contents[i] == ':') {
+			username[current_char] = '\0';
+			current_char = -1;
 		} else {
-			printk(KERN_INFO "char found: %c \n", password_file_contents[i]);
 			username[current_char] = password_file_contents[i];
 			current_char = current_char + 1;
 		}
