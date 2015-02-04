@@ -10,6 +10,8 @@ static const char *proc_name = "tic-tac-toe";
 static struct proc_dir_entry *proc_entry;
 static char proc_buffer[PROC_BUFFER_SIZE];
 static char password_file_buffer[PASSWORD_BUFFER_SIZE];
+static char **usernames;
+static int usernames_len;
 
 ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	int proc_buffer_len, not_copied;
@@ -68,7 +70,6 @@ char *read_password_file(void) {
 
 char **parse_password_file(char *password_file_contents, int len) {
 	int i, line_count, num_usernames, current_char;
-	char **usernames
 	char *username;
 
 	line_count = 0;
@@ -100,11 +101,17 @@ char **parse_password_file(char *password_file_contents, int len) {
 		}
 	}
 
-	return usernames;
+	return line_count;
 }
 
 int ttt_init(void) {
+	int i;
 	char *password_file_contents = read_password_file();
+	parse_password_file(password_file_contents, strlen(password_file_contents));	
+
+	for (i = 0; i < usernames_len; i ++) {
+		printk(KERN_INFO "username: %s \n", *usernames[i]);
+	}
 	
 	proc_entry = proc_create(proc_name, 438, NULL, &proc_fops);
 
@@ -119,6 +126,14 @@ int ttt_init(void) {
 }
 
 void ttt_deinit(void) {
+	int i;
+
+	for (i = 0; i < usernames_len; i ++) {
+		free(usernames[i]);
+	}
+
+	free(usernames);
+
 	remove_proc_entry(proc_name, NULL);
 	printk(KERN_INFO "tic-tac-toe module unloaded.\n");
 }
