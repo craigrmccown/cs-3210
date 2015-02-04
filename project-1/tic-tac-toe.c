@@ -6,11 +6,24 @@
 #define PROC_BUFFER_SIZE 256
 #define PASSWORD_BUFFER_SIZE 2048
 
+ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset);
+ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset);
+char *read_password_file(void);
+int parse_password_file(char *password_file_contents, int len);
+int ttt_init(void);
+void ttt_deinit(void);
+
 static char proc_buffer[PROC_BUFFER_SIZE];
 static char password_file_buffer[PASSWORD_BUFFER_SIZE];
 static int num_users;
 static char **usernames;
-static struct proc_dir_entry *user_proc_dirs;
+struct proc_dir_entry **user_proc_dirs;
+struct file_operations proc_fops;
+
+struct file_operations proc_fops = {
+	read: read_proc,
+	write: write_proc
+};
 
 ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	int proc_buffer_len, not_copied;
@@ -42,11 +55,6 @@ ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *off
 		return count;
 	}
 }
-
-struct file_operations proc_fops = {
-	read: read_proc,
-	write: write_proc
-};
 
 char *read_password_file(void) {
 	struct file *password_file;
@@ -162,7 +170,7 @@ void ttt_deinit(void) {
 	for (i = 0; i < num_users; i ++) {
 		remove_proc_entry("game", user_proc_dirs[i]);
 		remove_proc_entry("opponent", user_proc_dirs[i]);
-		remove_proc_entry(user_proc_dirs[i], NULL);
+		remove_proc_entry(usernames[i], NULL);
 		vfree(usernames[i]);
 	}
 
