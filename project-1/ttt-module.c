@@ -4,16 +4,20 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	struct ttt_game *game;
 	char game_board[18];
 	int i, move, bytes_read;
+	char *player_name;
 
 	printk(KERN_INFO "read_game called \n");
 
+	player_name = "hello";
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
-		if (copy_to_user(buffer, "you are not currently playing a game", 36)) {
+		if (copy_to_user(buffer, "you are not currently playing a game \n", 38)) {
 			return -EFAULT;
 		} else {
-			return 0;
+			bytes_read = 38 - *offset;
+			*offset = 38;
+			return bytes_read;
 		}
 	}
 
@@ -60,6 +64,7 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 	struct ttt_game *game;
 	int valid_input;
 
+	player_name = "hello";
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
