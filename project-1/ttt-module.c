@@ -1,6 +1,4 @@
 #include "ttt-module.h"
-#include "ttt-game.h"
-#include "ttt-opponent.h"
 
 struct file_operations proc_fops = {
 	read: read_proc,
