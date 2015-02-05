@@ -51,6 +51,7 @@ ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	char *opponent_name;
 	int buffer_len;
+	char *player_name = "haah";
 
 	buffer_len = strlen(buffer);
 	opponent_name = vmalloc(sizeof(char) * buffer_len);
@@ -109,10 +110,13 @@ char *read_password_file(void) {
 }
 
 int parse_password_file(char *password_file_contents, int len) {
-	int i, line_count, current_char;
+	int i, line_count, current_char, colon_count, j;
 	char *username;
+	char *uid;
 
 	line_count = 0;
+	colon_count = 0;
+	j = 0;
 
 	for (i = 0; i < len; i ++) {
 		if (password_file_contents[i] == '\n') {
@@ -122,21 +126,35 @@ int parse_password_file(char *password_file_contents, int len) {
 
 	usernames = vmalloc(sizeof(char*) * line_count);
 	username = vmalloc(sizeof(char) * 25);
+	uids = vmalloc(sizeof(char*) * line_count);
+	uid = vmalloc(sizeof(char) * 25);
 	num_users = 0;
 	current_char = 0;
 
 	for (i = 0; i < len; i ++) {
-		if (current_char == -1) {
+		if (colon_count == 4) {
+			if (password_file_contents[i] == ':') {
+			colon_count++;
+		}
+			uid[j] = password_file_contents[i];
+			j++;
+		}
+		else if (current_char == -1) {
 			if (password_file_contents[i] == '\n') {
 				usernames[num_users] = username;
+				uids[num_users] = uid;
 				username = vmalloc(sizeof(char) * 25);
+				uid = vmalloc(sizeof(char) * 25);
 				current_char = 0;
+				colon_count = 0;
+				j = 0;
 				num_users = num_users + 1;
 			}
 		} else if (password_file_contents[i] == ':') {
 			username[current_char] = '\0';
 			current_char = -1;
-		} else {
+			colon_count++;
+		}  else {
 			username[current_char] = password_file_contents[i];
 			current_char = current_char + 1;
 		}
