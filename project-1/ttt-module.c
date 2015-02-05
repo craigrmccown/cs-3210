@@ -1,7 +1,7 @@
 #include "ttt-module.h"
 
 ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	struct game_ttt *game;
+	struct ttt_game *game;
 	char game_board[18];
 	int i, move, bytes_read;
 
@@ -30,21 +30,20 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	}
 
 	for (i = 0; i < 5; i ++) {
-		move = game -> player1_moves[i] 
+		move = (game -> player1_moves)[i];
 		
-		if (move != NULL) {
+		if (move != -1) {
 			game_board[move * 2] = 'X';
 		}
 
 		move = game -> player2_moves[i];
 		
-		if (move != NULL) {
+		if (move != -1) {
 			game_board[move * 2] = 'O';
 		}
 	}
 
-	printk(KERN_INFO "game board: %s \n", game_board);
-
+	printk(KERN_INFO "game board: %s \n", game_board); 
 	if (copy_to_user(buffer, game_board, 18)) {
 		return -EFAULT;
 	} else {
@@ -55,12 +54,47 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 }
 
 ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
+	char input[1];
+	long move[1];
+	char *player_name;
+	struct ttt_game *game;
+	int valid_input;
+
+	game = find_game_by_username(player_name);
+
+	if (game == NULL) {
+		printk(KERN_ERR "player %s is not playing a game", player_name);
 		return -EFAULT;
-	} else {
-		proc_buffer[count] = 0;
-		return count;
 	}
+
+	if (strcmp(player_name, game -> next_player) != 0) {
+		printk(KERN_ERR "player %s tried to move, but it is not their turn", player_name);
+		return -EFAULT;
+	}
+
+	if (copy_from_user(input, buffer, 1)) {
+		printk(KERN_ERR "failed to copy input from user space");
+		return -EFAULT;
+	}
+
+	valid_input = kstrtol(input, 10, move);
+
+	if (valid_input != 0 || *move > 8 || *move < 0) {
+		printk(KERN_ERR "invalid input");
+		return -EFAULT;
+	}	
+	
+	if (strcmp(player_name, game -> player1) == 0) {
+		game -> player1_moves[game -> player1_num_moves] = *move;
+		game -> player1_num_moves ++;
+		game -> next_player = game -> player2;
+	} else {
+		game -> player2_moves[game -> player2_num_moves] = *move;
+		game -> player2_num_moves ++;
+		game -> next_player = game -> player1;
+	}
+	
+	return count;
 }
 
 /*
@@ -85,7 +119,7 @@ ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset
 
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	char *opponent_name;
-	int buffer_len;
+	int buffer_len, i;
 	char *player_name = "haah";
 
 	buffer_len = strlen(buffer);
@@ -122,7 +156,14 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 
 	games[num_games] -> player1 = player_name;	
 	games[num_games] -> player2 = opponent_name;	
+	games[num_games] -> player1_num_moves = 0;
+	games[num_games] -> player2_num_moves = 0;
 	games[num_games] -> next_player = player_name;	
+
+	for (i = 0; i < 5; i ++) {
+		games[num_games] -> player1_moves[i] = -1;
+		games[num_games] -> player2_moves[i] = -1;
+	} 
 
 	num_games ++;
 	return count;

@@ -13,6 +13,8 @@
 struct ttt_game {
 	char* player1;
 	char* player2;
+	int player1_num_moves;
+	int player2_num_moves;
 	int player1_moves[5];
 	int player2_moves[5];
 	char* next_player;
