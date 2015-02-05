@@ -8,6 +8,15 @@
 
 #define PROC_BUFFER_SIZE 256
 #define PASSWORD_BUFFER_SIZE 2048
+#define MAX_GAMES 10
+
+struct ttt_game {
+	char* player1,
+	char* player2,
+	int[5] player1_moves,
+	int[5] player2_moves,
+	char* next_player
+};
 
 ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset);
 ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *offset);
@@ -21,8 +30,11 @@ void ttt_deinit(void);
 char proc_buffer[PROC_BUFFER_SIZE];
 char password_file_buffer[PASSWORD_BUFFER_SIZE];
 int num_users;
+int num_games;
 char **usernames;
+char **u_ids;
 struct proc_dir_entry **user_proc_dirs;
+struct ttt_game **games;
 struct file_operations game_fops;
 struct file_operations opponent_fops;
 

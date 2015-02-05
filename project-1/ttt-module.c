@@ -10,9 +10,10 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 		count = proc_buffer_len - *offset;
 	}
 
-	if ((not_copied=copy_to_user(buffer + *offset, proc_buffer, count))) {
+	if ((not_copied = copy_to_user(buffer + *offset, proc_buffer, count))) {
 		count = -EFAULT;
 	} 
+
 	next_offset = *offset + (count - not_copied);
 	*offset = next_offset;
 
@@ -48,12 +49,45 @@ ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset
 }
 
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
+	char *opponent_name;
+	int buffer_len;
+
+	buffer_len = strlen(buffer);
+	opponent_name = vmalloc(sizeof(char) * buffer_len);
+
+	if (copy_from_user(opponent_name, buffer, buffer_len)) {
 		return -EFAULT;
-	} else {
-		proc_buffer[count] = 0;
-		return count;
 	}
+
+	opponent_name = sanitize_user(opponent_name);
+
+	if (opponent_name == NULL) {
+		return -EFAULT;
+	}
+
+	if (num_games == MAX_GAMES) {
+		return -EFAULT;
+	}
+
+	games[num_games] = vmalloc(sizeof(struct ttt_game));
+	games[num_games] -> player1 = player_name;	
+	games[num_games] -> player2 = opponent_name;	
+	games[num_games] -> next_player = player_name;	
+
+	num_games ++;
+	return count;
+}
+
+char *sanitize_user(char* username) {
+	int i;
+
+	for (i = 0; i < num_users; i ++) {
+		if (strcmp(usernames[i], username) == 0) {
+			return usernames[i];
+		}
+	}
+
+	return NULL;
 }
 
 char *read_password_file(void) {
@@ -163,6 +197,15 @@ int ttt_init(void) {
 		}
 	}
 
+ 	games = vmalloc(sizeof(struct ttt_game *) * MAX_GAMES);
+
+	if (games == NULL) {
+		ttt_deinit();
+		return -ENOMEM;
+	}
+
+	num_games = 0;
+
 	printk(KERN_INFO "tic-tac-toe module loaded.\n");
 	return 0;
 }
@@ -179,6 +222,7 @@ void ttt_deinit(void) {
 
 	vfree(usernames);
 	vfree(user_proc_dirs);
+	vfree(games);
 
 	printk(KERN_INFO "tic-tac-toe module unloaded.\n");
 }
