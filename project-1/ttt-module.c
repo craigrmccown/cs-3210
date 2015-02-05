@@ -1,11 +1,6 @@
 #include "ttt-module.h"
 
-struct file_operations proc_fops = {
-	read: read_proc,
-	write: write_proc
-};
-
-ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
+ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	int proc_buffer_len, not_copied;
 	loff_t next_offset;
 
@@ -24,7 +19,35 @@ ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	return count-not_copied;
 }
 
-ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
+		return -EFAULT;
+	} else {
+		proc_buffer[count] = 0;
+		return count;
+	}
+}
+
+ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset) {
+	int proc_buffer_len, not_copied;
+	loff_t next_offset;
+
+	proc_buffer_len = strlen(proc_buffer);
+
+	if (*offset + count > proc_buffer_len) {
+		count = proc_buffer_len - *offset;
+	}
+
+	if ((not_copied=copy_to_user(buffer + *offset, proc_buffer, count))) {
+		count = -EFAULT;
+	} 
+	next_offset = *offset + (count - not_copied);
+	*offset = next_offset;
+
+	return count-not_copied;
+}
+
+ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
 		return -EFAULT;
 	} else {
@@ -123,7 +146,7 @@ int ttt_init(void) {
 		}
 
 		user_proc_dirs[i] = user_proc_dir;
-		game_proc_file = proc_create("game", 438, user_proc_dir, &proc_fops);
+		game_proc_file = proc_create("game", 438, user_proc_dir, &game_fops);
 
 		if (game_proc_file == NULL) {
 			printk(KERN_ERR "ran out of memory for proc file game under proc dir %s \n", usernames[i]);
@@ -131,7 +154,7 @@ int ttt_init(void) {
 			return -ENOMEM;
 		}
 
-		opponent_proc_file = proc_create("opponent", 438, user_proc_dir, &proc_fops);
+		opponent_proc_file = proc_create("opponent", 438, user_proc_dir, &opponent_fops);
 
 		if (opponent_proc_file == NULL) {
 			printk(KERN_ERR "ran out of memory for proc file opponent under proc dir %s \n", usernames[i]);
@@ -159,6 +182,16 @@ void ttt_deinit(void) {
 
 	printk(KERN_INFO "tic-tac-toe module unloaded.\n");
 }
+
+struct file_operations game_fops = {
+	read: read_game,
+	write: write_game
+};
+
+struct file_operations opponent_fops = {
+	read: read_opponent,
+	write: write_opponent
+};
 
 module_init(ttt_init);
 module_exit(ttt_deinit);
