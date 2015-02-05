@@ -22,6 +22,7 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset);
 ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *offset);
 ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset);
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset);
+struct ttt_game *find_game_by_username(char *username);
 char *sanitize_user(char* username);
 char *read_password_file(void);
 int parse_password_file(char *password_file_contents, int len);

@@ -2,9 +2,10 @@
 
 ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	struct game_ttt *game;
-	char game[18];
+	char game_board[18];
 	int i;
 
+	/*
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
@@ -14,20 +15,21 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 			return 0;
 		}
 	}
+	*/
 
 	for (i = 0; i < 17; i ++) {
 		if (i % 2 != 0) {
 			if ((i - 5) % 6 == 0) {
-				game[i] = '\n';
+				game_board[i] = '\n';
 			} else {
-				game[i] = '|';
+				game_board[i] = '|';
 			}
 		} else {
-			game[i] = '_';	
+			game_board[i] = '_';	
 		}
 	}
 
-	if (copy_to_user(buffer, game, 18)) {
+	if (copy_to_user(buffer, game_board, 18)) {
 		return -EFAULT;
 	} else {
 		return 0;
@@ -78,7 +80,7 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 
 	if (find_game_by_username(player_name) != NULL) {
 		printk(KERN_ERR "player %s is already playing a game", player_name);
-		return -EFAULT
+		return -EFAULT;
 	}
 
 	opponent_name = sanitize_user(opponent_name);
