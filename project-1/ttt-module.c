@@ -1,23 +1,37 @@
 #include "ttt-module.h"
 
 ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	int proc_buffer_len, not_copied;
-	loff_t next_offset;
+	struct game_ttt *game;
+	char game[18];
+	int i;
 
-	proc_buffer_len = strlen(proc_buffer);
+	game = find_game_by_username(player_name);
 
-	if (*offset + count > proc_buffer_len) {
-		count = proc_buffer_len - *offset;
+	if (game == NULL) {
+		if (copy_to_user(buffer, "you are not currently playing a game", 36)) {
+			return -EFAULT;
+		} else {
+			return 0;
+		}
 	}
 
-	if ((not_copied = copy_to_user(buffer + *offset, proc_buffer, count))) {
-		count = -EFAULT;
-	} 
+	for (i = 0; i < 17; i ++) {
+		if (i % 2 != 0) {
+			if ((i - 5) % 6 == 0) {
+				game[i] = '\n';
+			} else {
+				game[i] = '|';
+			}
+		} else {
+			game[i] = '_';	
+		}
+	}
 
-	next_offset = *offset + (count - not_copied);
-	*offset = next_offset;
-
-	return count-not_copied;
+	if (copy_to_user(buffer, game, 18)) {
+		return -EFAULT;
+	} else {
+		return 0;
+	}
 }
 
 ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *offset) {
@@ -29,9 +43,9 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 	}
 }
 
+/*
 ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	int proc_buffer_len, not_copied;
-	loff_t next_offset;
+	char* message;
 
 	proc_buffer_len = strlen(proc_buffer);
 
@@ -45,8 +59,9 @@ ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset
 	next_offset = *offset + (count - not_copied);
 	*offset = next_offset;
 
-	return count-not_copied;
+	return count - not_copied;
 }
+*/
 
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	char *opponent_name;
@@ -56,26 +71,55 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 	opponent_name = vmalloc(sizeof(char) * buffer_len);
 
 	if (copy_from_user(opponent_name, buffer, buffer_len)) {
+		printk(KERN_ERR "failed to copy opponent write data from user space");
 		return -EFAULT;
+	}
+
+	if (find_game_by_username(player_name) != NULL) {
+		printk(KERN_ERR "player %s is already playing a game", player_name);
+		return -EFAULT
 	}
 
 	opponent_name = sanitize_user(opponent_name);
 
 	if (opponent_name == NULL) {
+		printk(KERN_ERR "opponent does not exist");
 		return -EFAULT;
 	}
 
 	if (num_games == MAX_GAMES) {
+		printk(KERN_ERR "maximum number of games exceeded");
 		return -EFAULT;
 	}
 
 	games[num_games] = vmalloc(sizeof(struct ttt_game));
+
+	if (games[num_games] == NULL) {
+		printk(KERN_ERR "insufficient memory to initialize game");
+		return -ENOMEM;
+	}
+
 	games[num_games] -> player1 = player_name;	
 	games[num_games] -> player2 = opponent_name;	
 	games[num_games] -> next_player = player_name;	
 
 	num_games ++;
 	return count;
+}
+
+struct ttt_game *find_game_by_username(char *username) {
+	int i;
+
+	for (i = 0; i < num_games; i ++) {
+		if (
+			strcmp(games[i] -> player1, username) == 0 ||
+			strcmp(games[i] -> player2, username) == 0
+		) {
+			return games[i];
+		}
+	}
+
+	return NULL;
 }
 
 char *sanitize_user(char* username) {
@@ -233,7 +277,7 @@ struct file_operations game_fops = {
 };
 
 struct file_operations opponent_fops = {
-	read: read_opponent,
+	// read: read_opponent,
 	write: write_opponent
 };
 
