@@ -4,11 +4,11 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	struct ttt_game *game;
 	char game_board[18];
 	int i, move, bytes_read;
-	char *player_name = "asdf";
+	char *player_name;
 
 	printk(KERN_INFO "read_game called \n");
 
-	player_name = "hello";
+	player_name = get_player_name(current_uid());
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
@@ -58,7 +58,7 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 }
 
 ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	char input[1];
+	char input[2];
 	long move[1];
 	char *player_name;
 	struct ttt_game *game;
@@ -66,7 +66,7 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 
 	printk(KERN_INFO "write_game called \n");
 
-	player_name = "hello";
+	player_name = get_player_name(current_uid());
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
@@ -84,8 +84,12 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 		return -EFAULT;
 	}
 
+	input[1] = '\0';
 	valid_input = kstrtol(input, 10, move);
 
+	printk("asdfasdfa %s \n", input);
+	printk("asdfasdfa %i \n", valid_input);
+	printk("asdfasdfa %lu \n", *move);
 	if (valid_input != 0 || *move > 8 || *move < 0) {
 		printk(KERN_ERR "invalid input \n");
 		return -EFAULT;
@@ -106,16 +110,12 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	char *opponent_name;
-	int buffer_len, i;
-	char *player_name;
+	int i;
+	char *player_name = "asdf";
 
-	buffer_len = strlen(buffer);
-	printk(KERN_INFO "asdafsdfa %i", buffer_len);
-	printk(KERN_INFO "asdafsdfa %s", buffer);
-	opponent_name = vmalloc(sizeof(char) * (buffer_len + 1));
-	opponent_name[buffer_len] = '\0';
+	opponent_name = vmalloc(sizeof(char) * (int) count);
 
-	if (copy_from_user(opponent_name, buffer, buffer_len)) {
+	if (copy_from_user(opponent_name, buffer, (int) count)) {
 		printk(KERN_ERR "failed to copy opponent write data from user space \n");
 		return -EFAULT;
 	}
@@ -125,6 +125,7 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 		return -EFAULT;
 	}
 
+	opponent_name[(int) count - 1] = '\0';
 	opponent_name = sanitize_user(opponent_name);
 
 	if (opponent_name == NULL) {
