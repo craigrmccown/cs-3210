@@ -1,9 +1,11 @@
 #include "ttt-module.h"
 
 ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	struct game_ttt *game;
+	// struct game_ttt *game;
 	char game_board[18];
-	int i;
+	int i, bytes_read;
+
+	printk(KERN_INFO "read_game called \n");
 
 	/*
 	game = find_game_by_username(player_name);
@@ -17,7 +19,7 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	}
 	*/
 
-	for (i = 0; i < 17; i ++) {
+	for (i = 0; i < 18; i ++) {
 		if (i % 2 != 0) {
 			if ((i - 5) % 6 == 0) {
 				game_board[i] = '\n';
@@ -29,10 +31,14 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 		}
 	}
 
+	printk(KERN_INFO "game board: %s \n", game_board);
+
 	if (copy_to_user(buffer, game_board, 18)) {
 		return -EFAULT;
 	} else {
-		return 0;
+		bytes_read = 18 - *offset;
+		*offset = 18;
+		return bytes_read;
 	}
 }
 
@@ -209,9 +215,11 @@ int parse_password_file(char *password_file_contents, int len) {
 	return line_count;
 }
 
+/*
 char *get_player_name(char* uid) {
 	int i;
 }
+*/
 
 int ttt_init(void) {
 	int i;
