@@ -4,7 +4,7 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	struct ttt_game *game;
 	char game_board[18];
 	int i, move, bytes_read;
-	char *player_name;
+	char *player_name = "asdf";
 
 	printk(KERN_INFO "read_game called \n");
 
@@ -104,33 +104,16 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 	return count;
 }
 
-/*
-ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	char* message;
-
-	proc_buffer_len = strlen(proc_buffer);
-
-	if (*offset + count > proc_buffer_len) {
-		count = proc_buffer_len - *offset;
-	}
-
-	if ((not_copied=copy_to_user(buffer + *offset, proc_buffer, count))) {
-		count = -EFAULT;
-	} 
-	next_offset = *offset + (count - not_copied);
-	*offset = next_offset;
-
-	return count - not_copied;
-}
-*/
-
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	char *opponent_name;
 	int buffer_len, i;
-	char *player_name = "haah";
+	char *player_name;
 
 	buffer_len = strlen(buffer);
-	opponent_name = vmalloc(sizeof(char) * buffer_len);
+	printk(KERN_INFO "asdafsdfa %i", buffer_len);
+	printk(KERN_INFO "asdafsdfa %s", buffer);
+	opponent_name = vmalloc(sizeof(char) * (buffer_len + 1));
+	opponent_name[buffer_len] = '\0';
 
 	if (copy_from_user(opponent_name, buffer, buffer_len)) {
 		printk(KERN_ERR "failed to copy opponent write data from user space \n");
@@ -162,6 +145,7 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 	}
 	
 	player_name = get_player_name(current_uid());
+
 	if (player_name == NULL) {
 		printk(KERN_ERR "could not find player name from uid");
 		return -EFAULT;
@@ -199,6 +183,7 @@ struct ttt_game *find_game_by_username(char *username) {
 
 char *sanitize_user(char* username) {
 	int i;
+	printk(KERN_INFO "asdfasdfa %s \n", username);
 
 	for (i = 0; i < num_users; i ++) {
 		if (strcmp(usernames[i], username) == 0) {
@@ -230,11 +215,10 @@ char *read_password_file(void) {
 int parse_password_file(char *password_file_contents, int len) {
 	int i, line_count, current_char, colon_count, j;
 	char *username;
-	int *uid;
+	char *uid;
 
 	line_count = 0;
 	colon_count = 0;
-	j = 0;
 
 	for (i = 0; i < len; i ++) {
 		if (password_file_contents[i] == '\n') {
@@ -244,52 +228,57 @@ int parse_password_file(char *password_file_contents, int len) {
 
 	usernames = vmalloc(sizeof(char*) * line_count);
 	username = vmalloc(sizeof(char) * 25);
-	uids = vmalloc(sizeof(int*) * line_count);
-	uid = vmalloc(sizeof(int) * 25);
+	uids = vmalloc(sizeof(int) * line_count);
+	uid = vmalloc(sizeof(char) * 25);
 	num_users = 0;
 	current_char = 0;
 
 	for (i = 0; i < len; i ++) {
-
-
 		if (colon_count == 0) {
 			if ((password_file_contents[i]) == ':') {
 				colon_count++;
+				username[current_char] = '\0';
 				current_char = 0;
 			} else {
 				username[current_char] = password_file_contents[i];
 				current_char++;
 			}
 		} else if (colon_count == 1) {
-			if((password_file_contents[i] == ':')) colon_count++;
-		} else if(colon_count == 2){
-			if(password_file_contents[i] == ':') {
+			if (password_file_contents[i] == ':') colon_count++;
+		} else if (colon_count == 2){
+			if (password_file_contents[i] == ':') {
 				colon_count++;	
+				uid[current_char] = '\0';
 				current_char = 0;
 			} else {
 				uid[current_char] = password_file_contents[i];
 				current_char++;
 			}
 		} else {
-			if(password_file_contents[i] == '\n') {
+			if (password_file_contents[i] == '\n') {
 				colon_count = 0;
 				usernames[num_users] = username;
-				uids[num_users] = uid;
-				username = vmalloc(sizeof(char) * 25);
-				uid = vmalloc(sizeof(int) * 25);
+				kstrtol(uid, 10, uids + num_users);
 				num_users++;
-				
+
+				for (j = 0; j < 25; j ++) {
+					uid[j] = '0';
+				}
+
+				username = vmalloc(sizeof(char) * 25);
+				uid = vmalloc(sizeof(char) * 25);
 			}
 		}
+	}
 
-}
+	vfree(uid);
 	return line_count;
 }
 
 char *get_player_name(int uid) {
 	int i;	
 	for(i = 0; i < num_users; i++) {
-		if(uid == *uids[i]) return usernames[i];
+		if(uid == uids[i]) return usernames[i];
 	}
 	return NULL;
 }
@@ -367,7 +356,6 @@ void ttt_deinit(void) {
 		remove_proc_entry("opponent", user_proc_dirs[i]);
 		remove_proc_entry(usernames[i], NULL);
 		vfree(usernames[i]);
-		vfree(uids[i]);
 	}
 
 	vfree(usernames);
@@ -384,7 +372,6 @@ struct file_operations game_fops = {
 };
 
 struct file_operations opponent_fops = {
-	// read: read_opponent,
 	write: write_opponent
 };
 

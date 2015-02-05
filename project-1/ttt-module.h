@@ -41,7 +41,7 @@ char password_file_buffer[PASSWORD_BUFFER_SIZE];
 int num_users;
 int num_games;
 char **usernames;
-int  **uids;
+long *uids;
 struct proc_dir_entry **user_proc_dirs;
 struct ttt_game **games;
 struct file_operations game_fops;
