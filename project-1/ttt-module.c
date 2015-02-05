@@ -64,28 +64,30 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 	struct ttt_game *game;
 	int valid_input;
 
+	printk(KERN_INFO "write_game called \n");
+
 	player_name = "hello";
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
-		printk(KERN_ERR "player %s is not playing a game", player_name);
+		printk(KERN_ERR "player %s is not playing a game \n", player_name);
 		return -EFAULT;
 	}
 
 	if (strcmp(player_name, game -> next_player) != 0) {
-		printk(KERN_ERR "player %s tried to move, but it is not their turn", player_name);
+		printk(KERN_ERR "player %s tried to move, but it is not their turn \n", player_name);
 		return -EFAULT;
 	}
 
 	if (copy_from_user(input, buffer, 1)) {
-		printk(KERN_ERR "failed to copy input from user space");
+		printk(KERN_ERR "failed to copy input from user space \n");
 		return -EFAULT;
 	}
 
 	valid_input = kstrtol(input, 10, move);
 
 	if (valid_input != 0 || *move > 8 || *move < 0) {
-		printk(KERN_ERR "invalid input");
+		printk(KERN_ERR "invalid input \n");
 		return -EFAULT;
 	}	
 	
@@ -131,31 +133,31 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 	opponent_name = vmalloc(sizeof(char) * buffer_len);
 
 	if (copy_from_user(opponent_name, buffer, buffer_len)) {
-		printk(KERN_ERR "failed to copy opponent write data from user space");
+		printk(KERN_ERR "failed to copy opponent write data from user space \n");
 		return -EFAULT;
 	}
 
 	if (find_game_by_username(player_name) != NULL) {
-		printk(KERN_ERR "player %s is already playing a game", player_name);
+		printk(KERN_ERR "player %s is already playing a game \n", player_name);
 		return -EFAULT;
 	}
 
 	opponent_name = sanitize_user(opponent_name);
 
 	if (opponent_name == NULL) {
-		printk(KERN_ERR "opponent does not exist");
+		printk(KERN_ERR "opponent does not exist \n");
 		return -EFAULT;
 	}
 
 	if (num_games == MAX_GAMES) {
-		printk(KERN_ERR "maximum number of games exceeded");
+		printk(KERN_ERR "maximum number of games exceeded \n");
 		return -EFAULT;
 	}
 
 	games[num_games] = vmalloc(sizeof(struct ttt_game));
 
 	if (games[num_games] == NULL) {
-		printk(KERN_ERR "insufficient memory to initialize game");
+		printk(KERN_ERR "insufficient memory to initialize game \n");
 		return -ENOMEM;
 	}
 
@@ -289,7 +291,7 @@ int ttt_init(void) {
 	password_file_contents = read_password_file();
 
 	if (password_file_contents == NULL) {
-		printk(KERN_ERR "failed to read password file");
+		printk(KERN_ERR "failed to read password file \n");
 		ttt_deinit();
 		return -EFAULT;
 	}
