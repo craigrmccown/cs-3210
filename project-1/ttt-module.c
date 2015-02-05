@@ -207,6 +207,10 @@ int parse_password_file(char *password_file_contents, int len) {
 	return line_count;
 }
 
+char *get_player_name(char* uid) {
+	int i;
+}
+
 int ttt_init(void) {
 	int i;
 	char *password_file_contents;
@@ -280,9 +284,11 @@ void ttt_deinit(void) {
 		remove_proc_entry("opponent", user_proc_dirs[i]);
 		remove_proc_entry(usernames[i], NULL);
 		vfree(usernames[i]);
+		vfree(uids[i]);
 	}
 
 	vfree(usernames);
+	vfree(uids);
 	vfree(user_proc_dirs);
 	vfree(games);
 
