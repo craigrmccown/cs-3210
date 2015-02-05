@@ -101,6 +101,12 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 		printk(KERN_ERR "insufficient memory to initialize game");
 		return -ENOMEM;
 	}
+	
+	player_name = get_player_name(current_uid());
+	if (player_name == NULL) {
+		printk(KERN_ERR "could not find player name from uid");
+		return -EFAULT;
+	}
 
 	games[num_games] -> player1 = player_name;	
 	games[num_games] -> player2 = opponent_name;	
@@ -158,7 +164,7 @@ char *read_password_file(void) {
 int parse_password_file(char *password_file_contents, int len) {
 	int i, line_count, current_char, colon_count, j;
 	char *username;
-	char *uid;
+	int *uid;
 
 	line_count = 0;
 	colon_count = 0;
@@ -172,45 +178,54 @@ int parse_password_file(char *password_file_contents, int len) {
 
 	usernames = vmalloc(sizeof(char*) * line_count);
 	username = vmalloc(sizeof(char) * 25);
-	uids = vmalloc(sizeof(char*) * line_count);
-	uid = vmalloc(sizeof(char) * 25);
+	uids = vmalloc(sizeof(int*) * line_count);
+	uid = vmalloc(sizeof(int) * 25);
 	num_users = 0;
 	current_char = 0;
 
 	for (i = 0; i < len; i ++) {
-		if (colon_count == 4) {
-			if (password_file_contents[i] == ':') {
-			colon_count++;
-		}
-			uid[j] = password_file_contents[i];
-			j++;
-		}
-		else if (current_char == -1) {
-			if (password_file_contents[i] == '\n') {
+
+
+		if (colon_count == 0) {
+			if ((password_file_contents[i]) == ':') {
+				colon_count++;
+				current_char = 0;
+			} else {
+				username[current_char] = password_file_contents[i];
+				current_char++;
+			}
+		} else if (colon_count == 1) {
+			if((password_file_contents[i] == ':')) colon_count++;
+		} else if(colon_count == 2){
+			if(password_file_contents[i] == ':') {
+				colon_count++;	
+				current_char = 0;
+			} else {
+				uid[current_char] = password_file_contents[i];
+				current_char++;
+			}
+		} else {
+			if(password_file_contents[i] == '\n') {
+				colon_count = 0;
 				usernames[num_users] = username;
 				uids[num_users] = uid;
 				username = vmalloc(sizeof(char) * 25);
-				uid = vmalloc(sizeof(char) * 25);
-				current_char = 0;
-				colon_count = 0;
-				j = 0;
-				num_users = num_users + 1;
+				uid = vmalloc(sizeof(int) * 25);
+				num_users++;
+				
 			}
-		} else if (password_file_contents[i] == ':') {
-			username[current_char] = '\0';
-			current_char = -1;
-			colon_count++;
-		}  else {
-			username[current_char] = password_file_contents[i];
-			current_char = current_char + 1;
 		}
-	}
 
+}
 	return line_count;
 }
 
-char *get_player_name(char* uid) {
-	int i;
+char *get_player_name(int uid) {
+	int i;	
+	for(i = 0; i < num_users; i++) {
+		if(uid == *uids[i]) return usernames[i];
+	}
+	return NULL;
 }
 
 int ttt_init(void) {
