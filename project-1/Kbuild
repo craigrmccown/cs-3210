@@ -1,2 +1,0 @@
-obj-m := ttt-module.o
-ttt-module-y := ttt-game.o ttt-opponent.o
