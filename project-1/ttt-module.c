@@ -1,13 +1,12 @@
 #include "ttt-module.h"
 
 ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	// struct game_ttt *game;
+	struct game_ttt *game;
 	char game_board[18];
-	int i, bytes_read;
+	int i, move, bytes_read;
 
 	printk(KERN_INFO "read_game called \n");
 
-	/*
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
@@ -17,7 +16,6 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 			return 0;
 		}
 	}
-	*/
 
 	for (i = 0; i < 18; i ++) {
 		if (i % 2 != 0) {
@@ -28,6 +26,20 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 			}
 		} else {
 			game_board[i] = '_';	
+		}
+	}
+
+	for (i = 0; i < 5; i ++) {
+		move = game -> player1_moves[i] 
+		
+		if (move != NULL) {
+			game_board[move * 2] = 'X';
+		}
+
+		move = game -> player2_moves[i];
+		
+		if (move != NULL) {
+			game_board[move * 2] = 'O';
 		}
 	}
 
