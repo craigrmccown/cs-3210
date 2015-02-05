@@ -45,13 +45,10 @@ ssize_t read_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 }
 
 ssize_t write_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	printk(KERN_INFO "tic-tac-toe proc file write: %s \n", buffer);
-
 	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
 		return -EFAULT;
 	} else {
 		proc_buffer[count] = 0;
-		printk(KERN_INFO "written to buffer: %s \n", proc_buffer);
 		return count;
 	}
 }
@@ -63,7 +60,6 @@ char *read_password_file(void) {
 	password_file = filp_open("/etc/passwd", O_RDONLY, 0);
 
 	if (password_file == NULL) {
-		printk(KERN_ERR "error reading password file");
 		return NULL;
 	}
 
@@ -76,7 +72,7 @@ char *read_password_file(void) {
 }
 
 int parse_password_file(char *password_file_contents, int len) {
-	int i, line_count, num_usernames, current_char;
+	int i, line_count, current_char;
 	char *username;
 
 	line_count = 0;
@@ -89,17 +85,16 @@ int parse_password_file(char *password_file_contents, int len) {
 
 	usernames = vmalloc(sizeof(char*) * line_count);
 	username = vmalloc(sizeof(char) * 25);
-	num_usernames = 0;
+	num_users = 0;
 	current_char = 0;
 
 	for (i = 0; i < len; i ++) {
 		if (current_char == -1) {
 			if (password_file_contents[i] == '\n') {
-				usernames[num_usernames] = username;
-				printk(KERN_INFO "1 username: %s \n", username);
+				usernames[num_users] = username;
 				username = vmalloc(sizeof(char) * 25);
 				current_char = 0;
-				num_usernames = num_usernames + 1;
+				num_users = num_users + 1;
 			}
 		} else if (password_file_contents[i] == ':') {
 			username[current_char] = '\0';
@@ -123,6 +118,7 @@ int ttt_init(void) {
 	password_file_contents = read_password_file();
 
 	if (password_file_contents == NULL) {
+		printk(KERN_ERR "failed to read password file");
 		ttt_deinit();
 		return -EFAULT;
 	}
@@ -132,14 +128,16 @@ int ttt_init(void) {
 	user_proc_dirs = vmalloc(sizeof(struct proc_dir_entry*) * num_users);
 
 	if (user_proc_dirs == NULL) {
+		printk(KERN_ERR "ran out of memory for user_proc_dirs, tried to allocate %i spots \n", num_users);
 		ttt_deinit();
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < num_users; i ++) {
-		user_proc_dir = proc_create(usernames[i], 438, NULL, &proc_fops);
+		user_proc_dir = proc_mkdir(usernames[i], NULL);
 
 		if (user_proc_dir == NULL) {
+			printk(KERN_ERR "ran out of memory for proc dir %s \n", usernames[i]);
 			ttt_deinit();
 			return -ENOMEM;
 		}
@@ -148,6 +146,7 @@ int ttt_init(void) {
 		game_proc_file = proc_create("game", 438, user_proc_dir, &proc_fops);
 
 		if (game_proc_file == NULL) {
+			printk(KERN_ERR "ran out of memory for proc file game under proc dir %s \n", usernames[i]);
 			ttt_deinit();
 			return -ENOMEM;
 		}
@@ -155,11 +154,12 @@ int ttt_init(void) {
 		opponent_proc_file = proc_create("opponent", 438, user_proc_dir, &proc_fops);
 
 		if (opponent_proc_file == NULL) {
+			printk(KERN_ERR "ran out of memory for proc file opponent under proc dir %s \n", usernames[i]);
 			ttt_deinit();
 			return -ENOMEM;
 		}
 	}
-	
+
 	printk(KERN_INFO "tic-tac-toe module loaded.\n");
 	return 0;
 }
