@@ -1,23 +1,27 @@
 #include "ttt-module.h"
 
 ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	struct game_ttt *game;
+	struct ttt_game *game;
 	char game_board[18];
-	int i;
+	int i, move, bytes_read;
+	char *player_name;
 
-	/*
+	printk(KERN_INFO "read_game called \n");
+
+	player_name = "hello";
 	game = find_game_by_username(player_name);
 
 	if (game == NULL) {
-		if (copy_to_user(buffer, "you are not currently playing a game", 36)) {
+		if (copy_to_user(buffer, "you are not currently playing a game \n", 38)) {
 			return -EFAULT;
 		} else {
-			return 0;
+			bytes_read = 38 - *offset;
+			*offset = 38;
+			return bytes_read;
 		}
 	}
-	*/
 
-	for (i = 0; i < 17; i ++) {
+	for (i = 0; i < 18; i ++) {
 		if (i % 2 != 0) {
 			if ((i - 5) % 6 == 0) {
 				game_board[i] = '\n';
@@ -29,20 +33,75 @@ ssize_t read_game(struct file *f, char *buffer, size_t count, loff_t *offset) {
 		}
 	}
 
+	for (i = 0; i < 5; i ++) {
+		move = (game -> player1_moves)[i];
+		
+		if (move != -1) {
+			game_board[move * 2] = 'X';
+		}
+
+		move = game -> player2_moves[i];
+		
+		if (move != -1) {
+			game_board[move * 2] = 'O';
+		}
+	}
+
+	printk(KERN_INFO "game board: %s \n", game_board); 
 	if (copy_to_user(buffer, game_board, 18)) {
 		return -EFAULT;
 	} else {
-		return 0;
+		bytes_read = 18 - *offset;
+		*offset = 18;
+		return bytes_read;
 	}
 }
 
 ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	if (copy_from_user(proc_buffer, buffer, strlen(buffer))) {
+	char input[1];
+	long move[1];
+	char *player_name;
+	struct ttt_game *game;
+	int valid_input;
+
+	printk(KERN_INFO "write_game called \n");
+
+	player_name = "hello";
+	game = find_game_by_username(player_name);
+
+	if (game == NULL) {
+		printk(KERN_ERR "player %s is not playing a game \n", player_name);
 		return -EFAULT;
-	} else {
-		proc_buffer[count] = 0;
-		return count;
 	}
+
+	if (strcmp(player_name, game -> next_player) != 0) {
+		printk(KERN_ERR "player %s tried to move, but it is not their turn \n", player_name);
+		return -EFAULT;
+	}
+
+	if (copy_from_user(input, buffer, 1)) {
+		printk(KERN_ERR "failed to copy input from user space \n");
+		return -EFAULT;
+	}
+
+	valid_input = kstrtol(input, 10, move);
+
+	if (valid_input != 0 || *move > 8 || *move < 0) {
+		printk(KERN_ERR "invalid input \n");
+		return -EFAULT;
+	}	
+	
+	if (strcmp(player_name, game -> player1) == 0) {
+		game -> player1_moves[game -> player1_num_moves] = *move;
+		game -> player1_num_moves ++;
+		game -> next_player = game -> player2;
+	} else {
+		game -> player2_moves[game -> player2_num_moves] = *move;
+		game -> player2_num_moves ++;
+		game -> next_player = game -> player1;
+	}
+	
+	return count;
 }
 
 /*
@@ -67,38 +126,38 @@ ssize_t read_opponent(struct file *f, char *buffer, size_t count, loff_t *offset
 
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	char *opponent_name;
-	int buffer_len;
+	int buffer_len, i;
 	char *player_name = "haah";
 
 	buffer_len = strlen(buffer);
 	opponent_name = vmalloc(sizeof(char) * buffer_len);
 
 	if (copy_from_user(opponent_name, buffer, buffer_len)) {
-		printk(KERN_ERR "failed to copy opponent write data from user space");
+		printk(KERN_ERR "failed to copy opponent write data from user space \n");
 		return -EFAULT;
 	}
 
 	if (find_game_by_username(player_name) != NULL) {
-		printk(KERN_ERR "player %s is already playing a game", player_name);
+		printk(KERN_ERR "player %s is already playing a game \n", player_name);
 		return -EFAULT;
 	}
 
 	opponent_name = sanitize_user(opponent_name);
 
 	if (opponent_name == NULL) {
-		printk(KERN_ERR "opponent does not exist");
+		printk(KERN_ERR "opponent does not exist \n");
 		return -EFAULT;
 	}
 
 	if (num_games == MAX_GAMES) {
-		printk(KERN_ERR "maximum number of games exceeded");
+		printk(KERN_ERR "maximum number of games exceeded \n");
 		return -EFAULT;
 	}
 
 	games[num_games] = vmalloc(sizeof(struct ttt_game));
 
 	if (games[num_games] == NULL) {
-		printk(KERN_ERR "insufficient memory to initialize game");
+		printk(KERN_ERR "insufficient memory to initialize game \n");
 		return -ENOMEM;
 	}
 	
@@ -110,7 +169,14 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 
 	games[num_games] -> player1 = player_name;	
 	games[num_games] -> player2 = opponent_name;	
+	games[num_games] -> player1_num_moves = 0;
+	games[num_games] -> player2_num_moves = 0;
 	games[num_games] -> next_player = player_name;	
+
+	for (i = 0; i < 5; i ++) {
+		games[num_games] -> player1_moves[i] = -1;
+		games[num_games] -> player2_moves[i] = -1;
+	} 
 
 	num_games ++;
 	return count;
@@ -238,7 +304,7 @@ int ttt_init(void) {
 	password_file_contents = read_password_file();
 
 	if (password_file_contents == NULL) {
-		printk(KERN_ERR "failed to read password file");
+		printk(KERN_ERR "failed to read password file \n");
 		ttt_deinit();
 		return -EFAULT;
 	}
