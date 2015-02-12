@@ -87,9 +87,6 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 	input[1] = '\0';
 	valid_input = kstrtol(input, 10, move);
 
-	printk("asdfasdfa %s \n", input);
-	printk("asdfasdfa %i \n", valid_input);
-	printk("asdfasdfa %lu \n", *move);
 	if (valid_input != 0 || *move > 8 || *move < 0) {
 		printk(KERN_ERR "invalid input \n");
 		return -EFAULT;
@@ -111,17 +108,23 @@ ssize_t write_game(struct file *f, const char *buffer, size_t count, loff_t *off
 ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t *offset) {
 	char *opponent_name;
 	int i;
-	char *player_name = "asdf";
+	char *player_name;
 
 	opponent_name = vmalloc(sizeof(char) * (int) count);
+	player_name = get_player_name(current_uid());
 
-	if (copy_from_user(opponent_name, buffer, (int) count)) {
-		printk(KERN_ERR "failed to copy opponent write data from user space \n");
+	if (player_name == NULL) {
+		printk(KERN_ERR "could not find player name from uid");
 		return -EFAULT;
 	}
 
 	if (find_game_by_username(player_name) != NULL) {
 		printk(KERN_ERR "player %s is already playing a game \n", player_name);
+		return -EFAULT;
+	}
+
+	if (copy_from_user(opponent_name, buffer, (int) count)) {
+		printk(KERN_ERR "failed to copy opponent write data from user space \n");
 		return -EFAULT;
 	}
 
@@ -145,12 +148,6 @@ ssize_t write_opponent(struct file *f, const char *buffer, size_t count, loff_t 
 		return -ENOMEM;
 	}
 	
-	player_name = get_player_name(current_uid());
-
-	if (player_name == NULL) {
-		printk(KERN_ERR "could not find player name from uid");
-		return -EFAULT;
-	}
 
 	games[num_games] -> player1 = player_name;	
 	games[num_games] -> player2 = opponent_name;	
@@ -184,7 +181,6 @@ struct ttt_game *find_game_by_username(char *username) {
 
 char *sanitize_user(char* username) {
 	int i;
-	printk(KERN_INFO "asdfasdfa %s \n", username);
 
 	for (i = 0; i < num_users; i ++) {
 		if (strcmp(usernames[i], username) == 0) {
