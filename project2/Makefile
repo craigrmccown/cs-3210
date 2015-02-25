@@ -12,7 +12,7 @@ $(EXE): $(OBJ)
 	gcc -o $@ $^ $(CFLAGS) $(LIBS)
 
 clean:
-	rm *.o $(EXE) strace-output.txt
+	rm -f *.o $(EXE) strace-output.txt
 
 strace:
 	strace -o strace-output.txt ./$(EXE)
