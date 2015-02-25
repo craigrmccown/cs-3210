@@ -1,4 +1,4 @@
-#include "clock.h"
+#include "mm.h"
 #define NUM_THREADS 10
 
 int rc;
