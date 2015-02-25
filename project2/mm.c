@@ -1,4 +1,4 @@
-#include "mm.h"
+#include "clock.h"
 #define NUM_THREADS 10
 
 int rc;
@@ -6,7 +6,8 @@ long t,y;
 void* status;
 double rate;
 clock_t start,end;
-double cpu_time_used;
+struct tms *startTMS, *endTMS;
+double cpu_time_used, user_time_used, system_time_used;
 
 /* Initialize the cycle counter */
 static unsigned cyc_hi = 0;
@@ -26,7 +27,7 @@ void access_counter(unsigned *hi, unsigned *lo) {
 }
 
 
-  /* Estimate the clock rate by measuring the cycles that elapse */  /* while sleeping for sleeptime seconds */
+/* Estimate the clock rate by measuring the cycles that elapse */  /* while sleeping for sleeptime seconds */
 double mhz(int verbose, int sleeptime)
 {
   double rate;
@@ -89,6 +90,9 @@ void *mult_matrix(void *t) {
 }
 
 int main() {
+  startTMS = malloc(sizeof(struct tms));
+  endTMS = malloc(sizeof(struct tms));
+  times(startTMS);
   start = clock();
   pthread_t thread[NUM_THREADS];
   pthread_attr_t attr;
@@ -115,11 +119,14 @@ int main() {
   }
   pthread_attr_destroy(&attr);
   end = clock();
+  times(endTMS);
   printf("Main: program completed. Exiting.\n");
 
   rate = mhz(1, 10);
   cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-  printf("cpu time used is: %f seconds\n", cpu_time_used);
+  user_time_used = ((double) (endTMS->tms_utime - startTMS->tms_utime)) / CLOCKS_PER_SEC;
+  system_time_used = ((double) (endTMS->tms_stime - startTMS->tms_stime)) / CLOCKS_PER_SEC;
+  printf("total cpu time used is: %f seconds\n user time is: %f seconds\n system time is: %f seconds\n", cpu_time_used, user_time_used, system_time_used);
   pthread_exit(NULL);
 
 }
