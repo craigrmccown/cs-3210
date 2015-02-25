@@ -1,11 +1,66 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
+#include "clock.h"
 #define NUM_THREADS 10
 
 int rc;
 long t,y;
 void* status;
+double rate;
+
+/* Initialize the cycle counter */
+static unsigned cyc_hi = 0;
+static unsigned cyc_lo = 0;
+
+
+/* Set *hi and *lo to the high and low order bits of the cycle counter.
+   Implementation requires assembly code to use the rdtsc instruction. */
+void access_counter(unsigned *hi, unsigned *lo) {
+  asm("rdtsc; movl %%edx,%0; movl %%eax,%1"
+      : "=r" (*hi), "=r" (*lo)
+      : /* No input */
+      : "%edx", "%eax");
+  /* Read cycle counter */
+  /* and move results to */
+  /* the two outputs */
+}
+
+
+  /* Estimate the clock rate by measuring the cycles that elapse */  /* while sleeping for sleeptime seconds */
+double mhz(int verbose, int sleeptime)
+{
+  double rate;
+  start_counter();
+  sleep(sleeptime);
+  rate = get_counter() / (1e6*sleeptime);
+  if (verbose)
+    printf("Processor clock rate  ̃= %.1f MHz\n", rate);
+  return rate;
+}
+
+/* Record the current value of the cycle counter. */
+void start_counter() {
+  access_counter(&cyc_hi, &cyc_lo);
+}
+
+/* Return the number of cycles since the last call to start_counter. */
+double get_counter() {
+  unsigned ncyc_hi, ncyc_lo;
+  unsigned hi, lo, borrow;
+  double result;
+
+  /* Get cycle counter */
+  access_counter(&ncyc_hi, &ncyc_lo);
+
+  /* Do double precision subtraction */
+  lo = ncyc_lo - cyc_lo;
+  borrow = lo > ncyc_lo;
+  hi = ncyc_hi - cyc_hi - borrow;
+  result = (double) hi * (1 << 30) * 4 + lo;
+  if (result < 0) {
+    fprintf(stderr, "Error: counter returns neg value: %.0f\n", result);
+  }
+  return result;
+}
+
 
 void *mult_matrix(void *t) {
   int m1[3][3], m2[3][3], m3[3][3],i,j,k;
@@ -56,6 +111,8 @@ int main() {
     }
   }
   pthread_attr_destroy(&attr);
-  printf("Main: program completed. Exiting.\n");
   pthread_exit(NULL);
+  printf("Main: program completed. Exiting.\n");
+  rate = mhz(1, 10);
+
 }
