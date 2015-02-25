@@ -13,3 +13,6 @@ $(EXE): $(OBJ)
 
 clean:
 	rm *.o $(EXE)
+
+strace:
+	strace -o strace-output.txt ./$(EXE)
