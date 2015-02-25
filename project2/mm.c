@@ -5,6 +5,8 @@ int rc;
 long t,y;
 void* status;
 double rate;
+clock_t start,end;
+double cpu_time_used;
 
 /* Initialize the cycle counter */
 static unsigned cyc_hi = 0;
@@ -87,6 +89,7 @@ void *mult_matrix(void *t) {
 }
 
 int main() {
+  start = clock();
   pthread_t thread[NUM_THREADS];
   pthread_attr_t attr;
   pthread_attr_init(&attr);
@@ -111,8 +114,12 @@ int main() {
     }
   }
   pthread_attr_destroy(&attr);
-  pthread_exit(NULL);
+  end = clock();
   printf("Main: program completed. Exiting.\n");
+
   rate = mhz(1, 10);
+  cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+  printf("cpu time used is: %f seconds\n", cpu_time_used);
+  pthread_exit(NULL);
 
 }
