@@ -4,6 +4,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
+#include <linux/uaccess.h>
 
 // struct declarations
 struct thread_time_data {
@@ -17,19 +18,22 @@ struct thread_time_data {
 struct epoch_time_data {
 	int epoch_id;
 	double total_wait;
-	thread_time_data threads[10];
+	struct thread_time_data threads[10];
 };
 
 struct time_data {
 	int clock_type;
-	epoch_time_data epochs[10];
-}
+	struct epoch_time_data epochs[10];
+};
 
 // variable declarations
-proc_dir_entry *root_proc_dir;
-proc_dir_entry *time_data_proc;
-proc_dir_entry *epoch_data_proc;
-proc_dir_entry *thread_data_proc;
+struct file_operations time_data_fops;
+struct file_operations epoch_data_fops;
+struct file_operations thread_data_fops;
+struct proc_dir_entry *root_proc_dir;
+struct proc_dir_entry *time_data_proc;
+struct proc_dir_entry *epoch_data_proc;
+struct proc_dir_entry *thread_data_proc;
 
 // function prototypes
 ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset);

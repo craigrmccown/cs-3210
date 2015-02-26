@@ -1,4 +1,4 @@
-#include "execution-time-module.h"
+#include "execution-time-mod.h"
 
 ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	char* results;
@@ -19,7 +19,7 @@ ssize_t write_time_data(struct file *f, const char *buffer, size_t count, loff_t
 	int spaces_found, i;
 	char *user_input;
 
-	if (copy_from_user(buffer, user_input, count)) {
+	if (copy_from_user(user_input, buffer, count)) {
 		return -EFAULT;
 	}
 
@@ -35,7 +35,7 @@ ssize_t write_epoch_data(struct file *f, const char *buffer, size_t count, loff_
 	int spaces_found, i;
 	char *user_input;
 
-	if (copy_from_user(buffer, user_input, count)) {
+	if (copy_from_user(user_input, buffer, count)) {
 		return -EFAULT;
 	}
 
@@ -51,7 +51,7 @@ ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff
 	int spaces_found, i;
 	char *user_input;
 
-	if (copy_from_user(buffer, user_input, count)) {
+	if (copy_from_user(user_input, buffer, count)) {
 		return -EFAULT;
 	}
 
@@ -65,9 +65,9 @@ ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff
 
 int execution_time_init(void) {
 	root_proc_dir = proc_mkdir("execution_time", NULL);
-	time_data_proc = proc_create("time_data", 438, root_proc_dir, &epoch_fops);
-	epoch_data_proc = proc_create("epoch_data", 438, root_proc_dir, &thread_fops);
-	thread_data_proc = proc_create("thread_data", 438, root_proc_dir, &thread_fops);
+	time_data_proc = proc_create("time_data", 438, root_proc_dir, &time_data_fops);
+	epoch_data_proc = proc_create("epoch_data", 438, root_proc_dir, &epoch_data_fops);
+	thread_data_proc = proc_create("thread_data", 438, root_proc_dir, &thread_data_fops);
 
 	return 0;
 }
