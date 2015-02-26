@@ -1,0 +1,1 @@
+cmd_/home/ubuntu/cs-3210/project2/execution-time-mod/execution-time-mod.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/ubuntu/cs-3210/project2/execution-time-mod/execution-time-mod.ko /home/ubuntu/cs-3210/project2/execution-time-mod/execution-time-mod.o /home/ubuntu/cs-3210/project2/execution-time-mod/execution-time-mod.mod.o
