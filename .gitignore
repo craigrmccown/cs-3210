@@ -4,3 +4,9 @@ strace-output.txt
 *.pdf
 *.zip
 *.txt
+*.cmd
+.tmp_versions
+Module.symvers
+*.mod.c
+*.ko
+modules.order
