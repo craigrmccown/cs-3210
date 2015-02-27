@@ -71,19 +71,29 @@ struct thread_time_data *find_thread_time_data(long thread_id, struct epoch_time
 }
 
 ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset) {
-//	char* results;
-//	int results_len;
+	char* results;
+	int results_position, i;
 
-//	if (offset == 0) {
-//		if (copy_to_user(buffer, results, results_len)) {
-//			return -EFAULT;
-//		} else {
-//			return results_len;
-//		}
-//	} else {
-//		return 0;
-//	}
-	return 0;
+	results = kmalloc(sizeof(char) * 1000, GFP_KERNEL);
+	results_position = 0;
+
+	for (i = 0; i < (execution_time_data -> num_epochs); i ++) {
+		sprintf(results + results_position, "epoch number %lu", (execution_time_data -> epochs)[i].epoch_id);
+		results_position = results_position + strlen(results);
+	}
+
+	if (offset == 0) {
+		if (copy_to_user(buffer, results, 1000)) {
+			kfree(results);
+			return -EFAULT;
+		} else {
+			kfree(results);
+			return 1000;
+		}
+	} else {
+		kfree(results);
+		return 0;
+	}
 }
 
 ssize_t write_epoch_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
@@ -182,3 +192,5 @@ struct file_operations thread_data_fops = {
 
 module_init(execution_time_init);
 module_exit(execution_time_exit);
+
+MODULE_LICENSE("GPL");
