@@ -4,12 +4,12 @@
 #define COLS 3
 
 int rc;
-long t,y;
+long t,y,pid;
 void* status;
 clock_t start,end;
 double gettime_pthread, gettime_malloc;
-FILE *fp_thread, *fp_epoch;
-pthread_mutex_t mutexsum;
+FILE *fp_thread, *fp_start;
+char pid_start[20];
 
 /* Initialize the cycle counter */
 static unsigned cyc_hi = 0;
@@ -55,22 +55,10 @@ double get_timer_malloc()
 }
 
 void *mult_matrix(void *threadarg) {
-  char thread_data[50];
-  char measurement_time[20];
-  char real_tid[20];
-  char epoch_id[2];
-  int x = 0, z = 0, l = 0;
   pd_t *pdata;
   pdata = (pd_t *) threadarg;
-  printf("The ID of this thread is: %u\n", (unsigned int)pthread_self());
-  int *array;
   int m1[ROWS][COLS],m2[ROWS][COLS], m3[ROWS][COLS];
   int i,j,k,sum = 0;
-  start_timer_malloc();
-  pthread_mutex_lock (&mutexsum);
-  array = malloc(sizeof(int)*100000000); // malloc call for system inspection
-  gettime_malloc = get_timer_malloc();
-  printf("get time for malloc (thread %lu): %lu seconds\n",pdata->tid,(long)(gettime_malloc * 1e6));
 
   double result = 0.0;
   //printf("Thread %ld starting...\n",(long)t);
@@ -89,59 +77,64 @@ void *mult_matrix(void *threadarg) {
       m3[i][j] = sum;
     }
   }
-  sprintf(measurement_time, "%lu", (long)(gettime_malloc * 1e6));
-  sprintf(real_tid, "%u", (unsigned int)pthread_self());
-  sprintf(epoch_id, "%ld", pdata->epoch_id);
-  fp_thread = fopen("/proc/execution_time/thread_data", "w");
-  //fp_epoch = fopen("/proc/epoch_data", "w");
-  //write user data to proc file
-  if (fp_thread == NULL) {
-    printf("can't write to /proc/execution_time/thread_data\n");
-  } else {
-  thread_data[x++] = *epoch_id;
-  thread_data[x++] = *" ";
-  while(real_tid[z] != *"\0") {
-    thread_data[x++] = real_tid[z++];
-  }
-  z = 0;
-  thread_data[x++] = *" ";
-  thread_data[x++] = *"1";
-  thread_data[x++] = *" ";
-  while(measurement_time[z] != *"\0") {
-    thread_data[x++] = measurement_time[z++];
-  }
-  thread_data[x++] = *" ";
-  thread_data[x++] = *"\0";
-  l = strlen(thread_data);
-  fprintf(fp_thread, "%s", thread_data);
-  free(array);
-  pthread_mutex_unlock (&mutexsum);
   pthread_exit((void*) t);
-  }
 }
 
 int main() {
+  pid = getpid();
   pthread_t thread[NUM_THREADS];
   pthread_attr_t attr;
-  pthread_mutex_init(&mutexsum, NULL);
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+  sprintf(pid_start, "%ld", pid);
+  fp_start = fopen("/proc/etm/start", "w");
+  fprintf(fp_start, "%s", pid_start);
+  fclose(fp_start);
   for(y=0;y<NUM_THREADS;y++) {
     for(t=0; t<NUM_THREADS; t++) {
-      //printf("Main: creating thread %ld\n", t);
+      char thread_data[50];
+      char measurement_time[20];
+      char real_pid[20];
+      char epoch_id[2];
+      int i = 0, j = 0;
+      printf("Main: creating thread %ld\n", t);
       pdata = (pd_t *) malloc(sizeof(pd_t));
-      pdata->tid = t;
+      pdata->pid = pid;
       pdata->epoch_id = y;
       start_timer_pthread();
       rc = pthread_create(&thread[t], &attr, mult_matrix, (void *)pdata);
       gettime_pthread = get_timer_pthread();
-      //printf("get time for pthread call (thread %ld): %f seconds\n", t,gettime_pthread);
       if (rc) {
         printf("ERROR; return code from pthread_create() is %d\n", rc);
         exit(-1);
       }
+      //printf("get time for pthread call (thread %ld): %f seconds\n", t,gettime_pthread);
+      sprintf(measurement_time, "%lu", (long)(gettime_pthread * 1e6));
+      sprintf(real_pid, "%ld", pdata->pid);
+      sprintf(epoch_id, "%ld", pdata->epoch_id);
+      fp_thread = fopen("/proc/etm/measurement", "w");
+      if (fp_thread == NULL) {
+        printf("can't write to /proc/etm/measurement\n");
+      } else {
+        while(real_pid[j] != '\0') {
+          thread_data[i++] = real_pid[j++];
+        }
+        thread_data[i++] = ' ';
+        thread_data[i++] = '1';
+        thread_data[i++] = ' ';
+        thread_data[i++] = *epoch_id;
+        thread_data[i++] = ' ';
+        j = 0;
+        while(measurement_time[j] != '\0') {
+          thread_data[i++] = measurement_time[j++];
+        }
+        thread_data[i++] = ' ';
+        thread_data[i++] = '\0';
+        fprintf(fp_thread, "%s", thread_data);
+        fclose(fp_thread);
+        // printf("%s\n", thread_data);
+      }
     }
-
     for(t=0; t<NUM_THREADS; t++) {
       rc = pthread_join(thread[t], &status);
       if (rc) {
@@ -153,7 +146,6 @@ int main() {
     printf("Should happen after all joins\n");
   }
   pthread_attr_destroy(&attr);
-  pthread_mutex_destroy(&mutexsum);
   free(pdata);
   pthread_exit(NULL);
   printf("Main: program completed. Exiting.\n");
