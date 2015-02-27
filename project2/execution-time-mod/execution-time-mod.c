@@ -1,66 +1,19 @@
 #include "execution-time-mod.h"
 
-struct epoch_time_data *find_epoch_time_data(long epoch_id) {
-	int i;
-	struct epoch_time_data *epoch;
-
-	for (i = 0; i < execution_time_data -> num_epochs; i ++) {
-		if ((execution_time_data -> epochs)[i] -> epoch_id == epoch_id) {
-			return (execution_time_data -> epochs)[i];
-		}
-	}
-
-	epoch = kmalloc(sizeof(struct epoch_time_data), GFP_KERNEL);
-
-	if (epoch != NULL) {
-		epoch -> epoch_id = epoch_id;
-		(execution_time_data -> epochs)[i] = epoch;
-		(execution_time_data -> num_epochs) ++;
-	}
-
-	return epoch;
-}
-
-ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset) {
-	char* results;
-	int results_len;
-
-	if (offset == 0) {
-		if (copy_to_user(buffer, results, results_len)) {
-			return -EFAULT;
-		} else {
-			return results_len;
-		}
-	} else {
-		return 0;
-	}
-}
-
-ssize_t write_epoch_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	return count;
-}
-
-ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	int spaces_found, i, input_buffer_position;
-	long *epoch_id, thread_id, measurement_id, measurement;
-	char *user_input, input_buffer;
-	struct epoch_time_data *epoch;
-	struct thread_time_data *thread;
-
-	input_buffer = kmalloc(sizeof(char) * 50, GFP_KERNEL);
-
-	if (input_buffer == NULL) {
-		return -EFAULT;
-	}
-
-	if (copy_from_user(user_input, buffer, count)) {
-		return -EFAULT;
-	}
+int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id, long *thread_id, long *measurement_id, long *measurement) {
+	int spaces_found, input_buffer_position, i;
+	char *input_buffer;
 
 	spaces_found = 0;
 	input_buffer_position = 0;
 
-	for (i = 0; i < count; i ++) {
+	input_buffer = kmalloc(sizeof(char) * 50, GFP_KERNEL);
+
+	if (input_buffer == NULL) {
+		return 1;
+	}
+
+	for (i = 0; i < user_input_len; i ++) {
 		if (user_input[i] == ' ') {
 			spaces_found ++;
 			input_buffer[input_buffer_position] = '\0';
@@ -81,13 +34,95 @@ ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff
 		}
 	}
 
+	kfree(input_buffer);
+
+	return 0;
+}
+
+struct epoch_time_data *find_epoch_time_data(long epoch_id) {
+	int i;
+
+	for (i = 0; i < execution_time_data -> num_epochs; i ++) {
+		if ((execution_time_data -> epochs)[i].epoch_id == epoch_id) {
+			return &(execution_time_data -> epochs)[i];
+		}
+	}
+
+	(execution_time_data -> epochs)[execution_time_data -> num_epochs].epoch_id = epoch_id;
+	(execution_time_data -> epochs)[execution_time_data -> num_epochs].num_threads = 0;
+	(execution_time_data -> num_epochs) ++;
+
+	return &(execution_time_data -> epochs)[(execution_time_data -> num_epochs) - 1];
+}
+
+struct thread_time_data *find_thread_time_data(long thread_id, struct epoch_time_data *epoch) {
+	int i;
+
+	for (i = 0; i < epoch -> num_threads; i ++) {
+		if ((epoch -> threads)[i].thread_id == thread_id) {
+			return &(epoch -> threads)[i];
+		}
+	}
+
+	(epoch -> threads)[epoch -> num_threads].thread_id = thread_id;
+	(epoch -> num_threads) ++;
+
+	return &(epoch -> threads)[(epoch -> num_threads) - 1];
+}
+
+ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset) {
+//	char* results;
+//	int results_len;
+
+//	if (offset == 0) {
+//		if (copy_to_user(buffer, results, results_len)) {
+//			return -EFAULT;
+//		} else {
+//			return results_len;
+//		}
+//	} else {
+//		return 0;
+//	}
+	return 0;
+}
+
+ssize_t write_epoch_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+	return count;
+}
+
+ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+	long *epoch_id, *thread_id, *measurement_id, *measurement;
+	char *user_input;
+	struct epoch_time_data *epoch;
+	struct thread_time_data *thread;
+
+	user_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
+	epoch_id = kmalloc(sizeof(long), GFP_KERNEL);
+	thread_id = kmalloc(sizeof(long), GFP_KERNEL);
+	measurement_id = kmalloc(sizeof(long), GFP_KERNEL);
+	measurement = kmalloc(sizeof(long), GFP_KERNEL);
+
+	if (user_input == NULL) {
+		return -EFAULT;
+	}
+
+	if (copy_from_user(user_input, buffer, count)) {
+		return -EFAULT;
+	}
+
+	if (parse_thread_data_input(user_input, count, epoch_id, thread_id, measurement_id, measurement)) {
+		return -EFAULT;
+	}
+
+	kfree(user_input);
+
 	epoch = find_epoch_time_data(*epoch_id);
 
 	if (epoch == NULL) {
 		return -EFAULT;
 	}
 
-	thread = find_thread_time_data(*epoch_id);
+	thread = find_thread_time_data(*thread_id, epoch);
 
 	if (thread == NULL) {
 		return -EFAULT;
@@ -102,6 +137,11 @@ ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff
 	} else if (*measurement_id == 3) {
 		thread -> u_create_time = *measurement;
 	}
+
+	kfree(epoch_id);
+	kfree(thread_id);
+	kfree(measurement_id);
+	kfree(measurement);
 
 	return count;
 }

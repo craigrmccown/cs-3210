@@ -43,7 +43,8 @@ struct time_data *execution_time_data;
 
 // function prototypes
 struct epoch_time_data *find_epoch_time_data(long epoch_id);
-struct thread_time_data *find_thread_time_data(long thread_id);
+struct thread_time_data *find_thread_time_data(long thread_id, struct epoch_time_data *epoch);
+int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id, long *thread_id, long *measurement_id, long *measurement);
 ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset);
 ssize_t write_epoch_data(struct file *f, const char *buffer, size_t count, loff_t *offset);
 ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff_t *offset);
