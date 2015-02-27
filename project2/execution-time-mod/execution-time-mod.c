@@ -1,110 +1,178 @@
 #include "execution-time-mod.h"
 
-int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id, long *thread_id, long *measurement_id, long *measurement) {
-	int spaces_found, input_buffer_position, i;
-	char *input_buffer;
+int allocate_data_structure(void) {
+	execution_time_mod_data = kmalloc(sizeof(etm_data), GFP_KERNEL);
+
+	if (execution_time_mod_data == NULL) {
+		return 0;
+	}
+
+	execution_time_mod_data -> p_id = -1;
+	execution_time_mod_data -> num_u_pthread_create_measurements = 0;
+	execution_time_mod_data -> u_pthread_create_measurements = kmalloc(sizeof(etm_measurement) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
+
+	if (execution_time_mod_data == NULL) {
+		kfree(execution_time_mod_data);
+		return 0;
+	}
+
+	return 1;
+}
+
+void free_data_structure(void) {
+	kfree(execution_time_mod_data -> u_pthread_create_measurements);
+	kfree(execution_time_mod_data);
+}
+
+void create_procs(void) {
+	root_proc_dir = proc_mkdir("etm", NULL);
+	start_proc = proc_create("start", 438, root_proc_dir, &start_fops);
+	measurement_proc = proc_create("measurement", 438, root_proc_dir, &measurement_fops);
+}
+
+void remove_procs(void) {
+	remove_proc_entry("start", root_proc_dir);
+	remove_proc_entry("measurement", root_proc_dir);
+	remove_proc_entry("etm", NULL);
+}
+
+ssize_t write_start_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+	char *copied_input;
+	long *p_id;
+
+	printk("etm start proc written");
+
+	copied_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
+	p_id = kmalloc(sizeof(long), GFP_KERNEL);
+
+	if (copied_input == NULL || p_id == NULL) {
+		printk("not enough memory to write to etm start proc");
+		return -ENOMEM;
+	}
+
+	if (copy_from_user(copied_input, buffer, count)) {
+		printk("failed to copy data from user space when writing to etm start proc");
+		return -EFAULT;
+	}
+
+	free_data_structure();
+	if (!allocate_data_structure()) {
+		printk("not enough memory to reinitialize data structure on write to etm start proc");
+		return -ENOMEM;
+	}
+
+	kstrtol(copied_input, 10, p_id);
+	execution_time_mod_data -> p_id = *p_id;
+
+	kfree(copied_input);
+	kfree(p_id);
+
+	return count;
+}
+
+ssize_t write_measurement_proc(struct file *f, const char *buffer, size_t count, loff_t *offset) {
+	char *copied_input, *parse_buffer;
+	long *p_id, *measurement_id, *epoch_id, *measurement;
+	int i, spaces_found, parse_buffer_position;
+
+	printk("etm measurement proc written");
+
+	copied_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
+	parse_buffer = kmalloc(sizeof(char) * 25, GFP_KERNEL);
+	p_id = kmalloc(sizeof(long), GFP_KERNEL);
+	measurement_id = kmalloc(sizeof(long), GFP_KERNEL);
+	epoch_id = kmalloc(sizeof(long), GFP_KERNEL);
+	measurement = kmalloc(sizeof(long), GFP_KERNEL);
+
+	if (
+		copied_input == NULL ||
+		parse_buffer == NULL ||
+		p_id == NULL ||
+		measurement_id == NULL ||
+		epoch_id == NULL ||
+		measurement == NULL
+	) {
+		printk("not enough memory to write to etm measurement proc");
+		kfree(copied_input);
+		kfree(parse_buffer);
+		kfree(p_id);
+		kfree(measurement_id);
+		kfree(epoch_id);
+		kfree(measurement);
+		return -ENOMEM;
+	}
+
+	if (copy_from_user(copied_input, buffer, count)) {
+		printk("failed to copy data from user space when writing to etm measurement proc");
+		return -EFAULT;
+	}
 
 	spaces_found = 0;
-	input_buffer_position = 0;
+	parse_buffer_position = 0;
 
-	input_buffer = kmalloc(sizeof(char) * 50, GFP_KERNEL);
-
-	if (input_buffer == NULL) {
-		return 1;
-	}
-
-	for (i = 0; i < user_input_len; i ++) {
-		if (user_input[i] == ' ') {
+	for (i = 0; i < count; i ++) {
+		if (copied_input[i] == ' ') {
 			spaces_found ++;
-			input_buffer[input_buffer_position] = '\0';
-			input_buffer_position = 0;
+			parse_buffer[parse_buffer_position] = '\0';
+			parse_buffer_position = 0;
 
 			if (spaces_found == 1) {
-				kstrtol(input_buffer, 10, epoch_id);
+				kstrtol(parse_buffer, 10, p_id);
 			} else if (spaces_found == 2) {
-				kstrtol(input_buffer, 10, thread_id);
+				kstrtol(parse_buffer, 10, measurement_id);
 			} else if (spaces_found == 3) {
-				kstrtol(input_buffer, 10, measurement_id);
+				kstrtol(parse_buffer, 10, epoch_id);
 			} else if (spaces_found == 4) {
-				kstrtol(input_buffer, 10, measurement);
+				kstrtol(parse_buffer, 10, measurement);
 			}
 		} else {
-			input_buffer[input_buffer_position] = user_input[i];
-			input_buffer_position ++;
+			parse_buffer[parse_buffer_position] = copied_input[i];
+			parse_buffer_position ++;
 		}
 	}
 
-	kfree(input_buffer);
-
-	return 0;
-}
-
-struct epoch_time_data *find_epoch_time_data(long epoch_id) {
-	int i;
-
-	for (i = 0; i < execution_time_data -> num_epochs; i ++) {
-		if ((execution_time_data -> epochs)[i].epoch_id == epoch_id) {
-			printk("found existing epoch with id %lu\n", (execution_time_data -> epochs)[i].epoch_id);
-			return &(execution_time_data -> epochs)[i];
+	if (*p_id == execution_time_mod_data -> p_id) {
+		if (*measurement_id == 1) {
+			(execution_time_mod_data -> u_pthread_create_measurements)[execution_time_mod_data -> num_u_pthread_create_measurements].epoch_id = *epoch_id;
+			(execution_time_mod_data -> u_pthread_create_measurements)[execution_time_mod_data -> num_u_pthread_create_measurements].measurement = *measurement;
+			execution_time_mod_data -> num_u_pthread_create_measurements ++;
 		}
 	}
 
-	(execution_time_data -> epochs)[execution_time_data -> num_epochs].epoch_id = epoch_id;
-	(execution_time_data -> epochs)[execution_time_data -> num_epochs].num_threads = 0;
-	(execution_time_data -> num_epochs) ++;
+	kfree(copied_input);
+	kfree(parse_buffer);
+	kfree(measurement_id);
+	kfree(epoch_id);
+	kfree(measurement);
 
-	printk(
-		"created epoch with id %lu, now have %i epochs\n",
-		(execution_time_data -> epochs)[(execution_time_data -> num_epochs) - 1].epoch_id,
-		(execution_time_data -> num_epochs)
-	);
-
-	return &(execution_time_data -> epochs)[(execution_time_data -> num_epochs) - 1];
+	return count;
 }
 
-struct thread_time_data *find_thread_time_data(long thread_id, struct epoch_time_data *epoch) {
-	int i;
-
-	for (i = 0; i < epoch -> num_threads; i ++) {
-		if ((epoch -> threads)[i].thread_id == thread_id) {
-			return &(epoch -> threads)[i];
-		}
-	}
-
-	(epoch -> threads)[epoch -> num_threads].thread_id = thread_id;
-	(epoch -> num_threads) ++;
-
-	return &(epoch -> threads)[(epoch -> num_threads) - 1];
-}
-
-ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset) {
+ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	char* results;
-	int results_position, epoch_index, thread_index;
+	int results_position, measurement_index;
 
-	printk("proc read handler called\n");
+	printk("etm measurement proc read");
 
 	if (*offset != 0) {
 		return 0;
 	}
 
-	results = kmalloc(sizeof(char) * 10000, GFP_KERNEL);
+	results = kmalloc(sizeof(char) * READ_BUFFER_LEN, GFP_KERNEL);
 	results_position = 0;
 
-	for (epoch_index = 0; epoch_index < (execution_time_data -> num_epochs); epoch_index ++) {
-		sprintf(results + results_position, "%lu\n", (execution_time_data -> epochs)[epoch_index].epoch_id);
+	for (measurement_index = 0; measurement_index < (execution_time_mod_data -> num_u_pthread_create_measurements); measurement_index ++) {
+		sprintf(
+			results + results_position, "epoch: %lu, measurement: %lu\n",
+			(execution_time_mod_data -> u_pthread_create_measurements)[measurement_index].epoch_id,
+			(execution_time_mod_data -> u_pthread_create_measurements)[measurement_index].measurement
+		);
 		results_position = strlen(results);
-
-		for (thread_index = 0; thread_index < (execution_time_data -> epochs)[epoch_index].num_threads; thread_index ++) {
-			sprintf(results + results_position, "\t%lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].thread_id);
-			results_position = strlen(results);
-			sprintf(results + results_position, "\t\t%lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].u_malloc_time);
-			results_position = strlen(results);
-		}
 	}
 
-	if (copy_to_user(buffer, results, 10000)) {
+	if (copy_to_user(buffer, results, READ_BUFFER_LEN)) {
 		kfree(results);
-		return -EFAULT;
+		return -ENOMEM;
 	} else {
 		kfree(results);
 		*offset = results_position;
@@ -112,91 +180,35 @@ ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t 
 	}
 }
 
-ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	long *epoch_id, *thread_id, *measurement_id, *measurement;
-	char *user_input;
-	struct epoch_time_data *epoch;
-	struct thread_time_data *thread;
-
-	printk("proc write handler called\n");
-	printk("buffer: %s\n", buffer);
-
-	user_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
-	epoch_id = kmalloc(sizeof(long), GFP_KERNEL);
-	thread_id = kmalloc(sizeof(long), GFP_KERNEL);
-	measurement_id = kmalloc(sizeof(long), GFP_KERNEL);
-	measurement = kmalloc(sizeof(long), GFP_KERNEL);
-
-	if (user_input == NULL) {
-		return -EFAULT;
+int etm_init(void) {
+	if (!allocate_data_structure()) {
+		printk("not enough memory to initialize etm data structure");
+		return -ENOMEM;
 	}
 
-	if (copy_from_user(user_input, buffer, count)) {
-		return -EFAULT;
-	}
+	create_procs();
 
-	if (parse_thread_data_input(user_input, count, epoch_id, thread_id, measurement_id, measurement)) {
-		return -EFAULT;
-	}
-
-	kfree(user_input);
-
-	epoch = find_epoch_time_data(*epoch_id);
-
-	if (epoch == NULL) {
-		return -EFAULT;
-	}
-
-	thread = find_thread_time_data(*thread_id, epoch);
-
-	if (thread == NULL) {
-		return -EFAULT;
-	}
-
-	if (*measurement_id == 1) {
-		thread -> u_malloc_time = *measurement;
-	}
-
-	kfree(epoch_id);
-	kfree(thread_id);
-	kfree(measurement_id);
-	kfree(measurement);
-
-	return count;
-}
-
-int execution_time_init(void) {
-	execution_time_data = kmalloc(sizeof(struct time_data), GFP_KERNEL);
-
-	if (execution_time_data == NULL) {
-		return -EFAULT;
-	}
-
-	execution_time_data -> num_epochs = 0;
-
-	root_proc_dir = proc_mkdir("execution_time", NULL);
-	thread_data_proc = proc_create("thread_data", 438, root_proc_dir, &thread_data_fops);
-
-	printk("loaded module execution_time_mod\n");
+	printk("loaded module etm\n");
 
 	return 0;
 }
 
-void execution_time_exit(void) {
-	kfree(execution_time_data);
-
-	remove_proc_entry("thread_data", root_proc_dir);
-	remove_proc_entry("execution_time", NULL);
-
+void etm_exit(void) {
+	free_data_structure();
+	remove_procs();
 	printk("unloaded module execution_time_mod\n");
 }
 
-struct file_operations thread_data_fops = {
-	read: read_execution_times,
-	write: write_thread_data
+struct file_operations start_fops = {
+	write: write_start_proc
 };
 
-module_init(execution_time_init);
-module_exit(execution_time_exit);
+struct file_operations measurement_fops = {
+	read: read_measurement_proc,
+	write: write_measurement_proc
+};
+
+module_init(etm_init);
+module_exit(etm_exit);
 
 MODULE_LICENSE("GPL");
