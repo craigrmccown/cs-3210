@@ -25,8 +25,6 @@ int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id
 				kstrtol(input_buffer, 10, thread_id);
 			} else if (spaces_found == 3) {
 				kstrtol(input_buffer, 10, measurement_id);
-			} else if (spaces_found == 4) {
-				kstrtol(input_buffer, 10, measurement);
 			}
 		} else {
 			input_buffer[input_buffer_position] = user_input[i];
@@ -34,6 +32,8 @@ int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id
 		}
 	}
 
+	input_buffer[input_buffer_position] = '\0';
+	kstrtol(input_buffer, 10, measurement);
 	kfree(input_buffer);
 
 	return 0;
@@ -44,6 +44,7 @@ struct epoch_time_data *find_epoch_time_data(long epoch_id) {
 
 	for (i = 0; i < execution_time_data -> num_epochs; i ++) {
 		if ((execution_time_data -> epochs)[i].epoch_id == epoch_id) {
+			printk("found existing epoch with id %lu\n", (execution_time_data -> epochs)[i].epoch_id);
 			return &(execution_time_data -> epochs)[i];
 		}
 	}
@@ -51,6 +52,12 @@ struct epoch_time_data *find_epoch_time_data(long epoch_id) {
 	(execution_time_data -> epochs)[execution_time_data -> num_epochs].epoch_id = epoch_id;
 	(execution_time_data -> epochs)[execution_time_data -> num_epochs].num_threads = 0;
 	(execution_time_data -> num_epochs) ++;
+
+	printk(
+		"created epoch with id %lu, now have %i epochs\n",
+		(execution_time_data -> epochs)[(execution_time_data -> num_epochs) - 1].epoch_id,
+		(execution_time_data -> num_epochs)
+	);
 
 	return &(execution_time_data -> epochs)[(execution_time_data -> num_epochs) - 1];
 }
@@ -72,32 +79,37 @@ struct thread_time_data *find_thread_time_data(long thread_id, struct epoch_time
 
 ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset) {
 	char* results;
-	int results_position, i;
+	int results_position, epoch_index, thread_index;
+
+	printk("proc read handler called\n");
+
+	if (*offset != 0) {
+		return 0;
+	}
 
 	results = kmalloc(sizeof(char) * 1000, GFP_KERNEL);
 	results_position = 0;
 
-	for (i = 0; i < (execution_time_data -> num_epochs); i ++) {
-		sprintf(results + results_position, "epoch number %lu", (execution_time_data -> epochs)[i].epoch_id);
-		results_position = results_position + strlen(results);
+	for (epoch_index = 0; epoch_index < (execution_time_data -> num_epochs); epoch_index ++) {
+		sprintf(results + results_position, "epoch id: %lu\n", (execution_time_data -> epochs)[epoch_index].epoch_id);
+		results_position = strlen(results);
+
+		for (thread_index = 0; thread_index < (execution_time_data -> epochs)[epoch_index].num_threads; thread_index ++) {
+			sprintf(results + results_position, "\tthread id: %lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].thread_id);
+			results_position = strlen(results);
+			sprintf(results + results_position, "\t\tuser space malloc time: %lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].u_malloc_time);
+			results_position = strlen(results);
+		}
 	}
 
-	if (offset == 0) {
-		if (copy_to_user(buffer, results, 1000)) {
-			kfree(results);
-			return -EFAULT;
-		} else {
-			kfree(results);
-			return 1000;
-		}
+	if (copy_to_user(buffer, results, 1000)) {
+		kfree(results);
+		return -EFAULT;
 	} else {
 		kfree(results);
-		return 0;
+		*offset = results_position;
+		return results_position;
 	}
-}
-
-ssize_t write_epoch_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
-	return count;
 }
 
 ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff_t *offset) {
@@ -105,6 +117,8 @@ ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff
 	char *user_input;
 	struct epoch_time_data *epoch;
 	struct thread_time_data *thread;
+
+	printk("proc write handler called\n");
 
 	user_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
 	epoch_id = kmalloc(sizeof(long), GFP_KERNEL);
@@ -138,14 +152,8 @@ ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff
 		return -EFAULT;
 	}
 
-	if (*measurement_id == 0) {
-		thread -> total_wait = *measurement;
-	} else if (*measurement_id == 1) {
+	if (*measurement_id == 1) {
 		thread -> u_malloc_time = *measurement;
-	} else if (*measurement_id == 2) {
-		thread -> u_free_time = *measurement;
-	} else if (*measurement_id == 3) {
-		thread -> u_create_time = *measurement;
 	}
 
 	kfree(epoch_id);
@@ -166,8 +174,9 @@ int execution_time_init(void) {
 	execution_time_data -> num_epochs = 0;
 
 	root_proc_dir = proc_mkdir("execution_time", NULL);
-	epoch_data_proc = proc_create("epoch_data", 438, root_proc_dir, &epoch_data_fops);
 	thread_data_proc = proc_create("thread_data", 438, root_proc_dir, &thread_data_fops);
+
+	printk("loaded module execution_time_mod\n");
 
 	return 0;
 }
@@ -176,14 +185,10 @@ void execution_time_exit(void) {
 	kfree(execution_time_data);
 
 	remove_proc_entry("thread_data", root_proc_dir);
-	remove_proc_entry("epoch_data", root_proc_dir);
 	remove_proc_entry("execution_time", NULL);
-}
 
-struct file_operations epoch_data_fops = {
-	read: read_execution_times,
-	write: write_epoch_data 
-};
+	printk("unloaded module execution_time_mod\n");
+}
 
 struct file_operations thread_data_fops = {
 	read: read_execution_times,
