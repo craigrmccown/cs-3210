@@ -10,39 +10,37 @@
 
 #define NUM_THREADS 10
 #define NUM_EPOCHS 10
+#define READ_BUFFER_LEN 10000
+
+typedef struct etm_measurement {
+	long epoch_id;
+	long measurement;
+} etm_measurement;
 
 // struct declarations
-struct thread_time_data {
-	long thread_id;
-	long u_malloc_time;
-};
-
-struct epoch_time_data {
-	long epoch_id;
-	long total_wait;
-	int num_threads;
-	struct thread_time_data threads[NUM_THREADS];
-};
-
-struct time_data {
-	int clock_type;
-	int num_epochs;
-	struct epoch_time_data epochs[NUM_EPOCHS];
-};
+typedef struct etm_data {
+	long p_id;
+	int num_u_pthread_create_measurements;
+	etm_measurement* u_pthread_create_measurements;
+} etm_data;
 
 // variable declarations
-struct file_operations thread_data_fops;
+struct file_operations start_fops;
+struct file_operations measurement_fops;
 struct proc_dir_entry *root_proc_dir;
-struct proc_dir_entry *thread_data_proc;
-struct time_data *execution_time_data;
+struct proc_dir_entry *start_proc;
+struct proc_dir_entry *measurement_proc;
+struct etm_data *execution_time_mod_data;
 
 // function prototypes
-struct epoch_time_data *find_epoch_time_data(long epoch_id);
-struct thread_time_data *find_thread_time_data(long thread_id, struct epoch_time_data *epoch);
-int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id, long *thread_id, long *measurement_id, long *measurement);
-ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t *offset);
-ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff_t *offset);
-void execution_time_exit(void);
-int execution_time_init(void);
+int allocate_data_structure(void);
+void free_data_structure(void);
+void create_procs(void);
+void remove_procs(void);
+ssize_t write_start_proc(struct file *f, const char *buffer, size_t count, loff_t *offset);
+ssize_t write_measurement_proc(struct file *f, const char *buffer, size_t count, loff_t *offset);
+ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t *offset);
+int etm_init(void);
+void etm_exit(void);
 
 #endif
