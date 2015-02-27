@@ -25,6 +25,8 @@ int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id
 				kstrtol(input_buffer, 10, thread_id);
 			} else if (spaces_found == 3) {
 				kstrtol(input_buffer, 10, measurement_id);
+			} else if (spaces_found == 4) {
+				kstrtol(input_buffer, 10, measurement);
 			}
 		} else {
 			input_buffer[input_buffer_position] = user_input[i];
@@ -32,8 +34,6 @@ int parse_thread_data_input(char *user_input, int user_input_len, long *epoch_id
 		}
 	}
 
-	input_buffer[input_buffer_position] = '\0';
-	kstrtol(input_buffer, 10, measurement);
 	kfree(input_buffer);
 
 	return 0;
@@ -87,22 +87,22 @@ ssize_t read_execution_times(struct file *f, char *buffer, size_t count, loff_t 
 		return 0;
 	}
 
-	results = kmalloc(sizeof(char) * 1000, GFP_KERNEL);
+	results = kmalloc(sizeof(char) * 10000, GFP_KERNEL);
 	results_position = 0;
 
 	for (epoch_index = 0; epoch_index < (execution_time_data -> num_epochs); epoch_index ++) {
-		sprintf(results + results_position, "epoch id: %lu\n", (execution_time_data -> epochs)[epoch_index].epoch_id);
+		sprintf(results + results_position, "%lu\n", (execution_time_data -> epochs)[epoch_index].epoch_id);
 		results_position = strlen(results);
 
 		for (thread_index = 0; thread_index < (execution_time_data -> epochs)[epoch_index].num_threads; thread_index ++) {
-			sprintf(results + results_position, "\tthread id: %lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].thread_id);
+			sprintf(results + results_position, "\t%lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].thread_id);
 			results_position = strlen(results);
-			sprintf(results + results_position, "\t\tuser space malloc time: %lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].u_malloc_time);
+			sprintf(results + results_position, "\t\t%lu\n", (execution_time_data -> epochs)[epoch_index].threads[thread_index].u_malloc_time);
 			results_position = strlen(results);
 		}
 	}
 
-	if (copy_to_user(buffer, results, 1000)) {
+	if (copy_to_user(buffer, results, 10000)) {
 		kfree(results);
 		return -EFAULT;
 	} else {
@@ -119,6 +119,7 @@ ssize_t write_thread_data(struct file *f, const char *buffer, size_t count, loff
 	struct thread_time_data *thread;
 
 	printk("proc write handler called\n");
+	printk("buffer: %s\n", buffer);
 
 	user_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
 	epoch_id = kmalloc(sizeof(long), GFP_KERNEL);

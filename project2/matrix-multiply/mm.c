@@ -62,14 +62,15 @@ void *mult_matrix(void *threadarg) {
   int x = 0, z = 0, l = 0;
   pd_t *pdata;
   pdata = (pd_t *) threadarg;
-  //printf("The ID of this thread is: %u\n", (unsigned int)pthread_self());
+  printf("The ID of this thread is: %u\n", (unsigned int)pthread_self());
   int *array;
   int m1[ROWS][COLS],m2[ROWS][COLS], m3[ROWS][COLS];
   int i,j,k,sum = 0;
   start_timer_malloc();
+  pthread_mutex_lock (&mutexsum);
   array = malloc(sizeof(int)*100000000); // malloc call for system inspection
   gettime_malloc = get_timer_malloc();
-  printf("get time for malloc (thread %ld): %f seconds\n",pdata->tid,gettime_malloc);
+  printf("get time for malloc (thread %lu): %lu seconds\n",pdata->tid,(long)(gettime_malloc * 1e6));
 
   double result = 0.0;
   //printf("Thread %ld starting...\n",(long)t);
@@ -88,16 +89,15 @@ void *mult_matrix(void *threadarg) {
       m3[i][j] = sum;
     }
   }
-  sprintf(measurement_time, "%f", gettime_malloc);
+  sprintf(measurement_time, "%lu", (long)(gettime_malloc * 1e6));
   sprintf(real_tid, "%u", (unsigned int)pthread_self());
   sprintf(epoch_id, "%ld", pdata->epoch_id);
-  pthread_mutex_lock (&mutexsum);
-  //fp_thread = fopen("/proc/thread_data", "w");
+  fp_thread = fopen("/proc/execution_time/thread_data", "w");
   //fp_epoch = fopen("/proc/epoch_data", "w");
   //write user data to proc file
-  //if (fp_thread == NULL) {
-  // printf("can't write to /proc/thread_data\n");
-  //} else {
+  if (fp_thread == NULL) {
+    printf("can't write to /proc/execution_time/thread_data\n");
+  } else {
   thread_data[x++] = *epoch_id;
   thread_data[x++] = *" ";
   while(real_tid[z] != *"\0") {
@@ -105,7 +105,7 @@ void *mult_matrix(void *threadarg) {
   }
   z = 0;
   thread_data[x++] = *" ";
-  thread_data[x++] = *"3";
+  thread_data[x++] = *"1";
   thread_data[x++] = *" ";
   while(measurement_time[z] != *"\0") {
     thread_data[x++] = measurement_time[z++];
@@ -113,15 +113,11 @@ void *mult_matrix(void *threadarg) {
   thread_data[x++] = *" ";
   thread_data[x++] = *"\0";
   l = strlen(thread_data);
-  for (i = 0; i < l; ++i)
-    printf("%c", thread_data[i]);
-  printf("\n");
-  // fprintf(fp_thread, "%c", thread_data[x]);
-  //printf("Thread %ld done. Result = %e\n",(long)t, result);
+  fprintf(fp_thread, "%s", thread_data);
   free(array);
   pthread_mutex_unlock (&mutexsum);
   pthread_exit((void*) t);
-
+  }
 }
 
 int main() {
@@ -152,12 +148,13 @@ int main() {
         printf("ERROR; return code from pthread_join() is %d\n", rc);
         exit(-1);
       }
-      printf("Main: completed join with thread %ld having a status  of %ld\n",t,(long)status);
+      // printf("Main: completed join with thread %ld having a status  of %ld\n",t,(long)status);
     }
     printf("Should happen after all joins\n");
   }
   pthread_attr_destroy(&attr);
   pthread_mutex_destroy(&mutexsum);
+  free(pdata);
   pthread_exit(NULL);
   printf("Main: program completed. Exiting.\n");
 }
