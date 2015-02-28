@@ -40,27 +40,28 @@ ssize_t write_start_proc(struct file *f, const char *buffer, size_t count, loff_
 	char *copied_input;
 	long *p_id;
 
-	printk("etm start proc written");
+	printk("etm start proc written\n");
 
-	copied_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
+	copied_input = kmalloc(sizeof(char) * count + 1, GFP_KERNEL);
 	p_id = kmalloc(sizeof(long), GFP_KERNEL);
 
 	if (copied_input == NULL || p_id == NULL) {
-		printk("not enough memory to write to etm start proc");
+		printk("not enough memory to write to etm start proc\n");
 		return -ENOMEM;
 	}
 
 	if (copy_from_user(copied_input, buffer, count)) {
-		printk("failed to copy data from user space when writing to etm start proc");
+		printk("failed to copy data from user space when writing to etm start proc\n");
 		return -EFAULT;
 	}
 
 	free_data_structure();
 	if (!allocate_data_structure()) {
-		printk("not enough memory to reinitialize data structure on write to etm start proc");
+		printk("not enough memory to reinitialize data structure on write to etm start proc\n");
 		return -ENOMEM;
 	}
 
+	copied_input[count] = '\0';
 	kstrtol(copied_input, 10, p_id);
 	execution_time_mod_data -> p_id = *p_id;
 
@@ -75,7 +76,7 @@ ssize_t write_measurement_proc(struct file *f, const char *buffer, size_t count,
 	long *p_id, *measurement_id, *epoch_id, *measurement;
 	int i, spaces_found, parse_buffer_position;
 
-	printk("etm measurement proc written");
+	printk("etm measurement proc written\n");
 
 	copied_input = kmalloc(sizeof(char) * count, GFP_KERNEL);
 	parse_buffer = kmalloc(sizeof(char) * 25, GFP_KERNEL);
@@ -92,7 +93,7 @@ ssize_t write_measurement_proc(struct file *f, const char *buffer, size_t count,
 		epoch_id == NULL ||
 		measurement == NULL
 	) {
-		printk("not enough memory to write to etm measurement proc");
+		printk("not enough memory to write to etm measurement proc\n");
 		kfree(copied_input);
 		kfree(parse_buffer);
 		kfree(p_id);
@@ -103,7 +104,7 @@ ssize_t write_measurement_proc(struct file *f, const char *buffer, size_t count,
 	}
 
 	if (copy_from_user(copied_input, buffer, count)) {
-		printk("failed to copy data from user space when writing to etm measurement proc");
+		printk("failed to copy data from user space when writing to etm measurement proc\n");
 		return -EFAULT;
 	}
 
@@ -131,7 +132,10 @@ ssize_t write_measurement_proc(struct file *f, const char *buffer, size_t count,
 		}
 	}
 
+	printk("measurment pid: %lu\n", execution_time_mod_data -> p_id);
+	printk("passed in pid: %lu\n", *p_id);
 	if (*p_id == execution_time_mod_data -> p_id) {
+		printk("passed in measurement id: %lu\n", *measurement_id);
 		if (*measurement_id == 1) {
 			(execution_time_mod_data -> u_pthread_create_measurements)[execution_time_mod_data -> num_u_pthread_create_measurements].epoch_id = *epoch_id;
 			(execution_time_mod_data -> u_pthread_create_measurements)[execution_time_mod_data -> num_u_pthread_create_measurements].measurement = *measurement;
@@ -152,7 +156,7 @@ ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t
 	char* results;
 	int results_position, measurement_index;
 
-	printk("etm measurement proc read");
+	printk("etm measurement proc read\n");
 
 	if (*offset != 0) {
 		return 0;
@@ -161,6 +165,7 @@ ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t
 	results = kmalloc(sizeof(char) * READ_BUFFER_LEN, GFP_KERNEL);
 	results_position = 0;
 
+	printk("num pthread create measurements: %i\n", execution_time_mod_data -> num_u_pthread_create_measurements);
 	for (measurement_index = 0; measurement_index < (execution_time_mod_data -> num_u_pthread_create_measurements); measurement_index ++) {
 		sprintf(
 			results + results_position, "epoch: %lu, measurement: %lu\n",
@@ -171,9 +176,11 @@ ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t
 	}
 
 	if (copy_to_user(buffer, results, READ_BUFFER_LEN)) {
+		printk("failed to copy data to user space");
 		kfree(results);
-		return -ENOMEM;
+		return -EFAULT;
 	} else {
+		printk("asdf : %s\n", results);
 		kfree(results);
 		*offset = results_position;
 		return results_position;
@@ -182,7 +189,7 @@ ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t
 
 int etm_init(void) {
 	if (!allocate_data_structure()) {
-		printk("not enough memory to initialize etm data structure");
+		printk("not enough memory to initialize etm data structure\n");
 		return -ENOMEM;
 	}
 
