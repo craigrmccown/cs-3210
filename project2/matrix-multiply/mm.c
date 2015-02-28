@@ -88,8 +88,12 @@ int main() {
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
   sprintf(pid_start, "%ld", pid);
   fp_start = fopen("/proc/etm/start", "w");
-  fprintf(fp_start, "%s", pid_start);
-  fclose(fp_start);
+  if (fp_start == NULL) {
+    printf("can't write to /proc/etm/start");
+  } else {
+    fprintf(fp_start, "%s", pid_start);
+    fclose(fp_start);
+  }
   for(y=0;y<NUM_THREADS;y++) {
     for(t=0; t<NUM_THREADS; t++) {
       char thread_data[50];
@@ -131,8 +135,8 @@ int main() {
         thread_data[i++] = ' ';
         thread_data[i++] = '\0';
         fprintf(fp_thread, "%s", thread_data);
+        //printf("%s\n", thread_data);
         fclose(fp_thread);
-        // printf("%s\n", thread_data);
       }
     }
     for(t=0; t<NUM_THREADS; t++) {
