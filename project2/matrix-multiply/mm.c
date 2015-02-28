@@ -1,15 +1,17 @@
 #include "mm.h"
+#define USED_CLOCK CLOCK_PROCESS_CPUTIME_ID
+#define NANOS 1000000000LL
 #define NUM_THREADS 10
 #define ROWS 3
 #define COLS 3
 
 int rc;
-long t,y,pid;
+long t,y,pid,start,elapsed,microseconds;
 void* status;
-clock_t start,end;
 double gettime_pthread, gettime_malloc;
 FILE *fp_thread, *fp_start;
 char pid_start[20];
+struct timespec begin, current;
 
 /* Initialize the cycle counter */
 static unsigned cyc_hi = 0;
@@ -106,8 +108,13 @@ int main() {
       pdata->pid = pid;
       pdata->epoch_id = y;
       start_timer_pthread();
+      clock_gettime(USED_CLOCK,&begin);
       rc = pthread_create(&thread[t], &attr, mult_matrix, (void *)pdata);
       gettime_pthread = get_timer_pthread();
+      clock_gettime(USED_CLOCK,&current);
+      start = begin.tv_sec*NANOS + begin.tv_nsec;
+      elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+      microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
       if (rc) {
         printf("ERROR; return code from pthread_create() is %d\n", rc);
         exit(-1);
