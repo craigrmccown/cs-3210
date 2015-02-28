@@ -1,5 +1,27 @@
-#include <linux/etm_setup.h>
+#ifndef ETM_SETUP
+#define ETM_SETUP
 
+#include <linux/slab.h>
+
+#define NUM_THREADS 10
+#define NUM_EPOCHS 10
+
+// struct definitions
+typedef struct etm_measurement {
+	long epoch_id;
+	long measurement;
+} etm_measurement;
+
+typedef struct etm_data {
+	long p_id;
+	int num_u_pthread_create_measurements;
+	etm_measurement* u_pthread_create_measurements;
+} etm_data;
+
+// variable declarations
+struct etm_data *execution_time_mod_data;
+
+// function definitions
 int allocate_data_structure(void) {
 	execution_time_mod_data = kmalloc(sizeof(etm_data), GFP_KERNEL);
 
@@ -24,3 +46,5 @@ if (allocate_data_structure()) {
 	EXPORT_SYMBOL_GPL(etm_data);
 	EXPORT_SYMBOL_GPL(execution_time_mod_data);
 }
+
+#endif
