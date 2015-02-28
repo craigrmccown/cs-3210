@@ -41,10 +41,14 @@ int allocate_data_structure(void) {
 	return 1;
 }
 
-if (allocate_data_structure()) {
-	EXPORT_SYMBOL_GPL(etm_measurement);
-	EXPORT_SYMBOL_GPL(etm_data);
-	EXPORT_SYMBOL_GPL(execution_time_mod_data);
+void etm_setup(void) {
+	if (allocate_data_structure()) {
+		EXPORT_SYMBOL_GPL(etm_measurement);
+		EXPORT_SYMBOL_GPL(etm_data);
+		EXPORT_SYMBOL_GPL(execution_time_mod_data);
+	}
 }
+
+etm_setup();
 
 #endif
