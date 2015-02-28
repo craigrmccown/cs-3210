@@ -1,4 +1,4 @@
-#include "execution-time-mod.h"
+#include "etm.h"
 
 int allocate_data_structure(void) {
 	execution_time_mod_data = kmalloc(sizeof(etm_data), GFP_KERNEL);

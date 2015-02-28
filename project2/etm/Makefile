@@ -1,4 +1,4 @@
-obj-m := execution-time-mod.o
+obj-m := etm.o
 
 build:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
