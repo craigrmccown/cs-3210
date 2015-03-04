@@ -12,25 +12,13 @@
 #define NUM_EPOCHS 10
 #define READ_BUFFER_LEN 10000
 
-typedef struct etm_measurement {
-	long epoch_id;
-	long measurement;
-} etm_measurement;
-
-// struct declarations
-typedef struct etm_data {
-	long p_id;
-	int num_u_pthread_create_measurements;
-	etm_measurement* u_pthread_create_measurements;
-} etm_data;
-
 // variable declarations
 struct file_operations start_fops;
 struct file_operations measurement_fops;
 struct proc_dir_entry *root_proc_dir;
 struct proc_dir_entry *start_proc;
 struct proc_dir_entry *measurement_proc;
-struct etm_data *execution_time_mod_data;
+extern struct etm_data *execution_time_mod_data;
 
 // function prototypes
 int allocate_data_structure(void);
