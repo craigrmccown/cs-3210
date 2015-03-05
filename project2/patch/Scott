@@ -1,6 +1,6 @@
 diff -rupN -x .git old/kernel/fork.c new/kernel/fork.c
 --- old/kernel/fork.c	2015-03-05 04:04:26.253823011 +0000
-+++ new/kernel/fork.c	2015-03-05 06:15:07.953823011 +0000
++++ new/kernel/fork.c	2015-03-05 06:27:19.557823011 +0000
 @@ -74,6 +74,8 @@
  #include <linux/uprobes.h>
  #include <linux/aio.h>
@@ -14,7 +14,7 @@ diff -rupN -x .git old/kernel/fork.c new/kernel/fork.c
  	struct task_struct *p;
  	int trace = 0;
  	long nr;
-+	struct ts_start, ts_end, ts_total_time;
++	struct timespec ts_start, ts_end, ts_total_time;
 +	getnstimeofday(&ts_start);
  
  	/*
@@ -31,7 +31,7 @@ diff -rupN -x .git old/kernel/fork.c new/kernel/fork.c
  
 diff -rupN -x .git old/mm/mmap.c new/mm/mmap.c
 --- old/mm/mmap.c	2015-03-05 04:04:28.437823011 +0000
-+++ new/mm/mmap.c	2015-03-05 06:19:13.253823011 +0000
++++ new/mm/mmap.c	2015-03-05 06:27:44.577823011 +0000
 @@ -41,6 +41,8 @@
  #include <linux/notifier.h>
  #include <linux/memory.h>
@@ -45,7 +45,7 @@ diff -rupN -x .git old/mm/mmap.c new/mm/mmap.c
  {
  	struct mm_struct *mm = current->mm;
  	vm_flags_t vm_flags;
-+	struct ts_start, ts_end, ts_total_time;
++	struct timespec ts_start, ts_end, ts_total_time;
 +	getnstimeofday(&ts_start);
  
  	*populate = 0;
