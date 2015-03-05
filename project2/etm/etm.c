@@ -144,9 +144,10 @@ ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t
 	printk("num pthread create measurements: %i\n", execution_time_mod_data -> num_u_pthread_create_measurements);
 	for (measurement_index = 0; measurement_index < (execution_time_mod_data -> num_u_pthread_create_measurements); measurement_index ++) {
 		sprintf(
-			results + results_position, "epoch: %lu, measurement: %lu\n",
+			results + results_position, "epoch: %lu, pthread_create measurement: %lu, clone measurement: %lu \n",
 			(execution_time_mod_data -> u_pthread_create_measurements)[measurement_index].epoch_id,
-			(execution_time_mod_data -> u_pthread_create_measurements)[measurement_index].measurement
+			(execution_time_mod_data -> u_pthread_create_measurements)[measurement_index].measurement,
+			(execution_time_mod_data -> k_clone_measurements)[measurement_index]
 		);
 		results_position = strlen(results);
 	}
