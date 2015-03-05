@@ -1,0 +1,76 @@
+diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
+--- old/include/linux/etm_setup.h	1970-01-01 00:00:00.000000000 +0000
++++ new/include/linux/etm_setup.h	2015-03-05 02:19:36.687412983 +0000
+@@ -0,0 +1,24 @@
++#ifndef ETM_SETUP
++#define ETM_SETUP
++
++#include <linux/slab.h>
++
++#define NUM_THREADS 10
++#define NUM_EPOCHS 10
++
++// struct definitions
++typedef struct etm_measurement {
++	long epoch_id;
++	long measurement;
++} etm_measurement;
++
++typedef struct etm_data {
++	long p_id;
++	int num_u_pthread_create_measurements;
++	etm_measurement* u_pthread_create_measurements;
++} etm_data;
++
++// function prototypes
++void etm_setup(void);
++
++#endif
+diff -rupN -x .git old/init/main.c new/init/main.c
+--- old/init/main.c	2015-03-05 02:04:26.239412983 +0000
++++ new/init/main.c	2015-03-05 02:20:25.123412983 +0000
+@@ -78,6 +78,7 @@
+ #include <linux/context_tracking.h>
+ #include <linux/random.h>
+ #include <linux/list.h>
++#include <linux/etm_setup.h>
+ 
+ #include <asm/io.h>
+ #include <asm/bugs.h>
+@@ -1030,4 +1031,7 @@ static noinline void __init kernel_init_
+ 
+ 	/* rootfs is available now, try loading default modules */
+ 	load_default_modules();
++
++	/* load etm data */
++	etm_setup();
+ }
+diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
+--- old/kernel/printk/printk.c	2015-03-05 02:04:26.267412983 +0000
++++ new/kernel/printk/printk.c	2015-03-05 02:20:05.727412983 +0000
+@@ -46,6 +46,7 @@
+ #include <linux/irq_work.h>
+ #include <linux/utsname.h>
+ #include <linux/ctype.h>
++#include <linux/etm_setup.h>
+ 
+ #include <asm/uaccess.h>
+ 
+@@ -3058,3 +3059,17 @@ void show_regs_print_info(const char *lo
+ }
+ 
+ #endif
++
++// variable declarations
++struct etm_data *execution_time_mod_data;
++
++// function definitions
++void etm_setup(void) {
++	execution_time_mod_data = kmalloc(sizeof(etm_data), GFP_KERNEL);
++
++	execution_time_mod_data -> p_id = -1;
++	execution_time_mod_data -> num_u_pthread_create_measurements = 0;
++	execution_time_mod_data -> u_pthread_create_measurements = kmalloc(sizeof(etm_measurement) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
++}
++
++EXPORT_SYMBOL_GPL(execution_time_mod_data);
