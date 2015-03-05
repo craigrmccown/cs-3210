@@ -1,0 +1,62 @@
+diff -rupN -x .git old/kernel/fork.c new/kernel/fork.c
+--- old/kernel/fork.c	2015-03-05 04:04:26.253823011 +0000
++++ new/kernel/fork.c	2015-03-05 06:15:07.953823011 +0000
+@@ -74,6 +74,8 @@
+ #include <linux/uprobes.h>
+ #include <linux/aio.h>
+ #include <linux/compiler.h>
++#include <linux/timekeeping.h>
++#include <linux/etm_setup.h>
+ 
+ #include <asm/pgtable.h>
+ #include <asm/pgalloc.h>
+@@ -1629,6 +1631,8 @@ long do_fork(unsigned long clone_flags,
+ 	struct task_struct *p;
+ 	int trace = 0;
+ 	long nr;
++	struct ts_start, ts_end, ts_total_time;
++	getnstimeofday(&ts_start);
+ 
+ 	/*
+ 	 * Determine whether and which event to report to ptracer.  When
+@@ -1687,6 +1691,9 @@ long do_fork(unsigned long clone_flags,
+ 	} else {
+ 		nr = PTR_ERR(p);
+ 	}
++	getnstimeofday(&ts_end);
++	ts_total_start = timespec_sub(ts_end,ts_start);
++	etm_clone(ts_total_start.tv_nsec);
+ 	return nr;
+ }
+ 
+diff -rupN -x .git old/mm/mmap.c new/mm/mmap.c
+--- old/mm/mmap.c	2015-03-05 04:04:28.437823011 +0000
++++ new/mm/mmap.c	2015-03-05 06:19:13.253823011 +0000
+@@ -41,6 +41,8 @@
+ #include <linux/notifier.h>
+ #include <linux/memory.h>
+ #include <linux/printk.h>
++#include <linux/timekeeping.h>
++#include <linux/etm_setup.h>
+ 
+ #include <asm/uaccess.h>
+ #include <asm/cacheflush.h>
+@@ -1264,6 +1266,8 @@ unsigned long do_mmap_pgoff(struct file
+ {
+ 	struct mm_struct *mm = current->mm;
+ 	vm_flags_t vm_flags;
++	struct ts_start, ts_end, ts_total_time;
++	getnstimeofday(&ts_start);
+ 
+ 	*populate = 0;
+ 
+@@ -1402,6 +1406,9 @@ unsigned long do_mmap_pgoff(struct file
+ 	    ((vm_flags & VM_LOCKED) ||
+ 	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
+ 		*populate = len;
++	getnstimeofday(&ts_end);
++	ts_total_time = timespec_sub(ts_end,ts_start);
++	//etm_memmap(ts_total_time.tv_nsec);
+ 	return addr;
+ }
+ 
