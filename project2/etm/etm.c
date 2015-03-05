@@ -1,29 +1,5 @@
 #include "etm.h"
 
-int allocate_data_structure(void) {
-	execution_time_mod_data = kmalloc(sizeof(etm_data), GFP_KERNEL);
-
-	if (execution_time_mod_data == NULL) {
-		return 0;
-	}
-
-	execution_time_mod_data -> p_id = -1;
-	execution_time_mod_data -> num_u_pthread_create_measurements = 0;
-	execution_time_mod_data -> u_pthread_create_measurements = kmalloc(sizeof(etm_measurement) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
-
-	if (execution_time_mod_data == NULL) {
-		kfree(execution_time_mod_data);
-		return 0;
-	}
-
-	return 1;
-}
-
-void free_data_structure(void) {
-	kfree(execution_time_mod_data -> u_pthread_create_measurements);
-	kfree(execution_time_mod_data);
-}
-
 void create_procs(void) {
 	root_proc_dir = proc_mkdir("etm", NULL);
 	start_proc = proc_create("start", 438, root_proc_dir, &start_fops);
@@ -55,8 +31,8 @@ ssize_t write_start_proc(struct file *f, const char *buffer, size_t count, loff_
 		return -EFAULT;
 	}
 
-	free_data_structure();
-	if (!allocate_data_structure()) {
+	etm_free();
+	if (!etm_allocate()) {
 		printk("not enough memory to reinitialize data structure on write to etm start proc\n");
 		return -ENOMEM;
 	}
@@ -188,11 +164,6 @@ ssize_t read_measurement_proc(struct file *f, char *buffer, size_t count, loff_t
 }
 
 int etm_init(void) {
-	if (!allocate_data_structure()) {
-		printk("not enough memory to initialize etm data structure\n");
-		return -ENOMEM;
-	}
-
 	create_procs();
 
 	printk("loaded module etm\n");
@@ -201,7 +172,6 @@ int etm_init(void) {
 }
 
 void etm_exit(void) {
-	free_data_structure();
 	remove_procs();
 	printk("unloaded module execution_time_mod\n");
 }
