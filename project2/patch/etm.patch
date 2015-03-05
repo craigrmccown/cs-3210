@@ -1,6 +1,6 @@
 diff -rupN -x .git old/arch/um/kernel/skas/clone.c new/arch/um/kernel/skas/clone.c
 --- old/arch/um/kernel/skas/clone.c	2015-03-05 02:04:22.755412983 +0000
-+++ new/arch/um/kernel/skas/clone.c	2015-03-05 04:24:32.851502790 +0000
++++ new/arch/um/kernel/skas/clone.c	2015-03-05 06:10:47.324652773 +0000
 @@ -11,6 +11,7 @@
  #include <ptrace_user.h>
  #include <stub-data.h>
@@ -29,7 +29,7 @@ diff -rupN -x .git old/arch/um/kernel/skas/clone.c new/arch/um/kernel/skas/clone
  }
 diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 --- old/include/linux/etm_setup.h	1970-01-01 00:00:00.000000000 +0000
-+++ new/include/linux/etm_setup.h	2015-03-05 03:45:51.863502790 +0000
++++ new/include/linux/etm_setup.h	2015-03-05 06:10:47.324652773 +0000
 @@ -0,0 +1,28 @@
 +#ifndef ETM_SETUP
 +#define ETM_SETUP
@@ -61,7 +61,7 @@ diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 +#endif
 diff -rupN -x .git old/init/main.c new/init/main.c
 --- old/init/main.c	2015-03-05 02:04:26.239412983 +0000
-+++ new/init/main.c	2015-03-05 03:37:30.619502790 +0000
++++ new/init/main.c	2015-03-05 06:10:47.324652773 +0000
 @@ -78,6 +78,7 @@
  #include <linux/context_tracking.h>
  #include <linux/random.h>
@@ -80,7 +80,7 @@ diff -rupN -x .git old/init/main.c new/init/main.c
  }
 diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 --- old/kernel/printk/printk.c	2015-03-05 02:04:26.267412983 +0000
-+++ new/kernel/printk/printk.c	2015-03-05 03:45:37.363502790 +0000
++++ new/kernel/printk/printk.c	2015-03-05 06:14:50.184652773 +0000
 @@ -46,8 +46,11 @@
  #include <linux/irq_work.h>
  #include <linux/utsname.h>
@@ -93,7 +93,7 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
  
  #define CREATE_TRACE_POINTS
  #include <trace/events/printk.h>
-@@ -3058,3 +3061,47 @@ void show_regs_print_info(const char *lo
+@@ -3058,3 +3061,49 @@ void show_regs_print_info(const char *lo
  }
  
  #endif
@@ -141,3 +141,5 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 +}
 +
 +EXPORT_SYMBOL_GPL(execution_time_mod_data);
++EXPORT_SYMBOL_GPL(etm_allocate);
++EXPORT_SYMBOL_GPL(etm_free);
