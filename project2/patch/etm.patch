@@ -1,7 +1,7 @@
 diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 --- old/include/linux/etm_setup.h	1970-01-01 00:00:00.000000000 +0000
-+++ new/include/linux/etm_setup.h	2015-03-05 02:19:36.687412983 +0000
-@@ -0,0 +1,24 @@
++++ new/include/linux/etm_setup.h	2015-03-05 03:19:31.275502790 +0000
+@@ -0,0 +1,27 @@
 +#ifndef ETM_SETUP
 +#define ETM_SETUP
 +
@@ -20,10 +20,13 @@ diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 +	long p_id;
 +	int num_u_pthread_create_measurements;
 +	etm_measurement* u_pthread_create_measurements;
++	int num_k_clone_measurements;
++	long* k_clone_measurements;
 +} etm_data;
 +
 +// function prototypes
 +void etm_setup(void);
++void etm_clone(long measurement);
 +
 +#endif
 diff -rupN -x .git old/init/main.c new/init/main.c
@@ -47,16 +50,18 @@ diff -rupN -x .git old/init/main.c new/init/main.c
  }
 diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 --- old/kernel/printk/printk.c	2015-03-05 02:04:26.267412983 +0000
-+++ new/kernel/printk/printk.c	2015-03-05 02:20:05.727412983 +0000
-@@ -46,6 +46,7 @@
++++ new/kernel/printk/printk.c	2015-03-05 03:13:52.919502790 +0000
+@@ -46,6 +46,9 @@
  #include <linux/irq_work.h>
  #include <linux/utsname.h>
  #include <linux/ctype.h>
++#include <linux/sched.h>
++#include <linux/current.h>
 +#include <linux/etm_setup.h>
  
  #include <asm/uaccess.h>
  
-@@ -3058,3 +3059,17 @@ void show_regs_print_info(const char *lo
+@@ -3058,3 +3061,26 @@ void show_regs_print_info(const char *lo
  }
  
  #endif
@@ -71,6 +76,15 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 +	execution_time_mod_data -> p_id = -1;
 +	execution_time_mod_data -> num_u_pthread_create_measurements = 0;
 +	execution_time_mod_data -> u_pthread_create_measurements = kmalloc(sizeof(etm_measurement) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
++	execution_time_mod_data -> num_k_clone_measurements = 0;
++	execution_time_mod_data -> k_clone_measurements = kmalloc(sizeof(long) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
++}
++
++void etm_clone(long measurement) {
++	if (current -> pid == execution_time_mod_data -> p_id) {
++		execution_time_mod_data -> k_clone_measurements[execution_time_mod_data -> num_k_clone_measurements] = measurement;
++		execution_time_mod_data -> num_k_clone_measurements ++;
++	}
 +}
 +
 +EXPORT_SYMBOL_GPL(execution_time_mod_data);
