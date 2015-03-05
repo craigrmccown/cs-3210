@@ -1,0 +1,29 @@
+diff -rupN -x .git old/arch/um/kernel/skas/clone.c new/arch/um/kernel/skas/clone.c
+--- old/arch/um/kernel/skas/clone.c	2015-03-05 04:03:31.409823011 +0000
++++ new/arch/um/kernel/skas/clone.c	2015-03-05 04:12:25.561823011 +0000
+@@ -11,6 +11,7 @@
+ #include <ptrace_user.h>
+ #include <stub-data.h>
+ #include <sysdep/stub.h>
++#include <linux/timekeeping.h>
+ 
+ /*
+  * This is in a separate file because it needs to be compiled with any
+@@ -23,6 +24,8 @@
+ void __attribute__ ((__section__ (".__syscall_stub")))
+ stub_clone_handler(void)
+ {
++	struct timespec ts_start,ts_end,ts_total_time;
++	getnstimeofday(&ts_start);
+ 	struct stub_data *data = (struct stub_data *) STUB_DATA;
+ 	long err;
+ 
+@@ -52,5 +55,8 @@ stub_clone_handler(void)
+ 	 */
+ 	data->err = err;
+  done:
++	getnstimeofday(&ts_end);
++	ts_total_time = timespec_sub(ts_end,ts_start);
++	etm_clone(ts_total_time.nv_sec);
+ 	trap_myself();
+ }
