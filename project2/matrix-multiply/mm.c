@@ -21,6 +21,27 @@ pd_t *pdata;
 
 
 
+#define CBYTES (1<<19)
+#define CINTS (CBYTES/sizeof(int))
+
+/* A large array to bring into cache */
+static int dummy[CINTS];
+volatile int sink;
+
+/* Evict the existing blocks from the data caches */
+void clear_cache()
+{
+  int i = 0;
+  int sum = 0;
+
+  for (i=0;i<CINTS;i++)
+    dummy[i] = 3;
+  for (i=0;i<CINTS;i++)
+    sum += dummy[i];
+  sink = sum;
+}
+
+
 
 /* Record current time */
 void start_timer_pthread()
@@ -96,6 +117,7 @@ int main() {
     fprintf(fp_start, "%s", pid_start);
     fclose(fp_start);
   }
+  clear_cache(); //clear cache to get more consistent timing results
   for(y=0;y<NUM_THREADS;y++) {
     for(t=0; t<NUM_THREADS; t++) {
       char thread_data[50];
@@ -108,13 +130,14 @@ int main() {
       pdata->pid = pid;
       pdata->epoch_id = y;
       start_timer_pthread();
-      clock_gettime(USED_CLOCK,&begin);
+      //clock_gettime(USED_CLOCK,&begin);
       rc = pthread_create(&thread[t], &attr, mult_matrix, (void *)pdata);
       gettime_pthread = get_timer_pthread();
-      clock_gettime(USED_CLOCK,&current);
-      start = begin.tv_sec*NANOS + begin.tv_nsec;
-      elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
-      microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+      //clock_gettime(USED_CLOCK,&current);
+      //start = begin.tv_sec*NANOS + begin.tv_nsec;
+      //elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+      //microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+      //printf("elapsed time in microseconds for USED_CLOCK is %ld", microseconds);
       if (rc) {
         printf("ERROR; return code from pthread_create() is %d\n", rc);
         exit(-1);
