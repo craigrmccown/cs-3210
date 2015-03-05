@@ -7,6 +7,7 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/gfp.h>
+#include <linux/etm_setup.h>
 
 #define NUM_THREADS 10
 #define NUM_EPOCHS 10
