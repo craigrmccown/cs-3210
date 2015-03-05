@@ -1,6 +1,6 @@
 diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 --- old/include/linux/etm_setup.h	1970-01-01 00:00:00.000000000 +0000
-+++ new/include/linux/etm_setup.h	2015-03-05 03:34:24.455502790 +0000
++++ new/include/linux/etm_setup.h	2015-03-05 03:45:51.863502790 +0000
 @@ -0,0 +1,28 @@
 +#ifndef ETM_SETUP
 +#define ETM_SETUP
@@ -25,7 +25,7 @@ diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 +} etm_data;
 +
 +// function prototypes
-+void etm_allocate(void);
++int etm_allocate(void);
 +void etm_free(void);
 +void etm_clone(long measurement);
 +
@@ -51,7 +51,7 @@ diff -rupN -x .git old/init/main.c new/init/main.c
  }
 diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 --- old/kernel/printk/printk.c	2015-03-05 02:04:26.267412983 +0000
-+++ new/kernel/printk/printk.c	2015-03-05 03:37:22.003502790 +0000
++++ new/kernel/printk/printk.c	2015-03-05 03:45:37.363502790 +0000
 @@ -46,8 +46,11 @@
  #include <linux/irq_work.h>
  #include <linux/utsname.h>
@@ -64,7 +64,7 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
  
  #define CREATE_TRACE_POINTS
  #include <trace/events/printk.h>
-@@ -3058,3 +3061,34 @@ void show_regs_print_info(const char *lo
+@@ -3058,3 +3061,47 @@ void show_regs_print_info(const char *lo
  }
  
  #endif
@@ -73,14 +73,27 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 +struct etm_data *execution_time_mod_data;
 +
 +// function definitions
-+void etm_allocate(void) {
++int etm_allocate(void) {
 +	execution_time_mod_data = kmalloc(sizeof(etm_data), GFP_KERNEL);
++
++	if (execution_time_mod_data == NULL) {
++		return 0;
++	}
 +
 +	execution_time_mod_data -> p_id = -1;
 +	execution_time_mod_data -> num_u_pthread_create_measurements = 0;
 +	execution_time_mod_data -> u_pthread_create_measurements = kmalloc(sizeof(etm_measurement) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
 +	execution_time_mod_data -> num_k_clone_measurements = 0;
 +	execution_time_mod_data -> k_clone_measurements = kmalloc(sizeof(long) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
++
++	if (
++		execution_time_mod_data -> u_pthread_create_measurements == NULL ||
++		execution_time_mod_data -> k_clone_measurements == NULL
++	) {
++		return 0;
++	}
++
++	return 1;
 +}
 +
 +void etm_free(void) {
