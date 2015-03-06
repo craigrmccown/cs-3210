@@ -1,7 +1,7 @@
 diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 --- old/include/linux/etm_setup.h	1970-01-01 00:00:00.000000000 +0000
-+++ new/include/linux/etm_setup.h	2015-03-06 00:58:52.387589785 +0000
-@@ -0,0 +1,31 @@
++++ new/include/linux/etm_setup.h	2015-03-06 01:36:30.701209461 +0000
+@@ -0,0 +1,37 @@
 +#ifndef ETM_SETUP
 +#define ETM_SETUP
 +
@@ -24,6 +24,10 @@ diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 +	long* k_clone_measurements;
 +	int num_k_mmap_measurements;
 +	long* k_mmap_measurements;
++	int num_k_kmem_cache_create_measurements;
++	long* k_kmem_cache_create_measurements;
++	int num_k_kmem_cache_free_measurements;
++	long* k_kmem_cache_free_measurements;
 +} etm_data;
 +
 +// function prototypes
@@ -31,6 +35,8 @@ diff -rupN -x .git old/include/linux/etm_setup.h new/include/linux/etm_setup.h
 +void etm_free(void);
 +void etm_clone(long measurement);
 +void etm_mmap(long measurement);
++void etm_kmem_cache_create(long measurement);
++void etm_kmem_cache_free(long measurement);
 +
 +#endif
 diff -rupN -x .git old/init/main.c new/init/main.c
@@ -85,7 +91,7 @@ diff -rupN -x .git old/kernel/fork.c new/kernel/fork.c
  
 diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 --- old/kernel/printk/printk.c	2015-03-05 02:04:26.267412983 +0000
-+++ new/kernel/printk/printk.c	2015-03-06 00:58:52.391589785 +0000
++++ new/kernel/printk/printk.c	2015-03-06 01:37:25.205209461 +0000
 @@ -46,8 +46,11 @@
  #include <linux/irq_work.h>
  #include <linux/utsname.h>
@@ -98,7 +104,7 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
  
  #define CREATE_TRACE_POINTS
  #include <trace/events/printk.h>
-@@ -3058,3 +3061,65 @@ void show_regs_print_info(const char *lo
+@@ -3058,3 +3061,91 @@ void show_regs_print_info(const char *lo
  }
  
  #endif
@@ -123,10 +129,17 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 +	execution_time_mod_data -> k_clone_measurements = kmalloc(sizeof(long) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
 +	execution_time_mod_data -> num_k_mmap_measurements = 0;
 +	execution_time_mod_data -> k_mmap_measurements = kmalloc(sizeof(long) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
++	execution_time_mod_data -> num_k_kmem_cache_create_measurements = 0;
++	execution_time_mod_data -> k_kmem_cache_create_measurements = kmalloc(sizeof(long) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
++	execution_time_mod_data -> num_k_kmem_cache_free_measurements = 0;
++	execution_time_mod_data -> k_kmem_cache_free_measurements = kmalloc(sizeof(long) * NUM_EPOCHS * NUM_THREADS, GFP_KERNEL);
 +
 +	if (
 +		execution_time_mod_data -> u_pthread_create_measurements == NULL ||
-+		execution_time_mod_data -> k_clone_measurements == NULL
++		execution_time_mod_data -> k_clone_measurements == NULL ||
++		execution_time_mod_data -> k_mmap_measurements == NULL ||
++		execution_time_mod_data -> k_kmem_cache_create_measurements == NULL ||
++		execution_time_mod_data -> k_kmem_cache_free_measurements == NULL
 +	) {
 +		return 0;
 +	}
@@ -134,6 +147,8 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 +	for (i = 0; i < NUM_EPOCHS * NUM_THREADS; i ++) {
 +		(execution_time_mod_data -> k_clone_measurements)[i] = -1;
 +		(execution_time_mod_data -> k_mmap_measurements)[i] = -1;
++		(execution_time_mod_data -> k_kmem_cache_create_measurements)[i] = -1;
++		(execution_time_mod_data -> k_kmem_cache_free_measurements)[i] = -1;
 +	}
 +
 +	return 1;
@@ -142,6 +157,9 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 +void etm_free(void) {
 +	kfree(execution_time_mod_data -> u_pthread_create_measurements);
 +	kfree(execution_time_mod_data -> k_clone_measurements);
++	kfree(execution_time_mod_data -> k_mmap_measurements);
++	kfree(execution_time_mod_data -> k_kmem_cache_create_measurements);
++	kfree(execution_time_mod_data -> k_kmem_cache_free_measurements);
 +	kfree(execution_time_mod_data);
 +
 +	execution_time_mod_data = NULL;
@@ -156,8 +174,22 @@ diff -rupN -x .git old/kernel/printk/printk.c new/kernel/printk/printk.c
 +
 +void etm_mmap(long measurement) {
 +	if (execution_time_mod_data != NULL && current -> pid == execution_time_mod_data -> p_id && execution_time_mod_data -> num_k_mmap_measurements < NUM_EPOCHS * NUM_THREADS) {
-+		execution_time_mod_data -> k_clone_measurements[execution_time_mod_data -> num_k_clone_measurements] = measurement;
-+		execution_time_mod_data -> num_k_clone_measurements ++;
++		execution_time_mod_data -> k_mmap_measurements[execution_time_mod_data -> num_k_mmap_measurements] = measurement;
++		execution_time_mod_data -> num_k_mmap_measurements ++;
++	}
++}
++
++void etm_kmem_cache_create(long measurement) {
++	if (execution_time_mod_data != NULL && current -> pid == execution_time_mod_data -> p_id && execution_time_mod_data -> num_k_kmem_cache_create_measurements < NUM_EPOCHS * NUM_THREADS) {
++		execution_time_mod_data -> k_kmem_cache_create_measurements[execution_time_mod_data -> num_k_kmem_cache_create_measurements] = measurement;
++		execution_time_mod_data -> num_k_kmem_cache_create_measurements ++;
++	}
++}
++
++void etm_kmem_cache_free(long measurement) {
++	if (execution_time_mod_data != NULL && current -> pid == execution_time_mod_data -> p_id && execution_time_mod_data -> num_k_kmem_cache_free_measurements < NUM_EPOCHS * NUM_THREADS) {
++		execution_time_mod_data -> k_kmem_cache_free_measurements[execution_time_mod_data -> num_k_kmem_cache_free_measurements] = measurement;
++		execution_time_mod_data -> num_k_kmem_cache_free_measurements ++;
 +	}
 +}
 +
