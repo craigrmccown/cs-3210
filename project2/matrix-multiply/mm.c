@@ -21,7 +21,7 @@ pd_t *pdata;
 
 
 
-#define CBYTES (1<<19)
+#define CBYTES (1<<25)
 #define CINTS (CBYTES/sizeof(int))
 
 /* A large array to bring into cache */
@@ -39,7 +39,6 @@ void clear_cache()
   for (i=0;i<CINTS;i++)
     sum += dummy[i];
   sink = sum;
-  sleep(10);
 }
 
 
@@ -179,7 +178,7 @@ int main() {
       // printf("Main: completed join with thread %ld having a status  of %ld\n",t,(long)status);
     }
     printf("Should happen after all joins\n");
-    clear_cache();
+    clear_cache(); //not appearing to do much for us, but keeping just in case
   }
   pthread_attr_destroy(&attr);
   free(pdata);
