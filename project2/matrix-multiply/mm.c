@@ -175,6 +175,7 @@ int main() {
         printf("ERROR; return code from pthread_join() is %d\n", rc);
         exit(-1);
       }
+      clear_cache();
       // printf("Main: completed join with thread %ld having a status  of %ld\n",t,(long)status);
     }
     printf("Should happen after all joins\n");
