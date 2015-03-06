@@ -39,6 +39,7 @@ void clear_cache()
   for (i=0;i<CINTS;i++)
     sum += dummy[i];
   sink = sum;
+  sleep(10);
 }
 
 
