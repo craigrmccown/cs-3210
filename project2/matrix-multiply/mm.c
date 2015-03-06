@@ -129,21 +129,21 @@ int main() {
       pdata = (pd_t *) malloc(sizeof(pd_t));
       pdata->pid = pid;
       pdata->epoch_id = y;
-      start_timer_pthread();
-      //clock_gettime(USED_CLOCK,&begin);
+      //start_timer_pthread();
+      clock_gettime(USED_CLOCK,&begin);
       rc = pthread_create(&thread[t], &attr, mult_matrix, (void *)pdata);
-      gettime_pthread = get_timer_pthread();
-      //clock_gettime(USED_CLOCK,&current);
-      //start = begin.tv_sec*NANOS + begin.tv_nsec;
-      //elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
-      //microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+      //gettime_pthread = get_timer_pthread();
+      clock_gettime(USED_CLOCK,&current);
+      start = begin.tv_sec*NANOS + begin.tv_nsec;
+      elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+      microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
       //printf("elapsed time in microseconds for USED_CLOCK is %ld", microseconds);
       if (rc) {
         printf("ERROR; return code from pthread_create() is %d\n", rc);
         exit(-1);
       }
       //printf("get time for pthread call (thread %ld): %f seconds\n", t,gettime_pthread);
-      sprintf(measurement_time, "%lu", (long)(gettime_pthread * 1e6));
+      sprintf(measurement_time, "%lu", microseconds);
       sprintf(real_pid, "%ld", pdata->pid);
       sprintf(epoch_id, "%ld", pdata->epoch_id);
       fp_thread = fopen("/proc/etm/measurement", "w");
