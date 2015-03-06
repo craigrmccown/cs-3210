@@ -31,7 +31,7 @@ diff -rupN -x .git old/kernel/fork.c new/kernel/fork.c
  
 diff -rupN -x .git old/mm/mmap.c new/mm/mmap.c
 --- old/mm/mmap.c	2015-03-05 04:04:28.437823011 +0000
-+++ new/mm/mmap.c	2015-03-05 06:30:19.661823011 +0000
++++ new/mm/mmap.c	2015-03-06 00:27:30.417823011 +0000
 @@ -41,6 +41,8 @@
  #include <linux/notifier.h>
  #include <linux/memory.h>
@@ -41,22 +41,28 @@ diff -rupN -x .git old/mm/mmap.c new/mm/mmap.c
  
  #include <asm/uaccess.h>
  #include <asm/cacheflush.h>
-@@ -1264,6 +1266,8 @@ unsigned long do_mmap_pgoff(struct file
+@@ -1263,7 +1265,12 @@ unsigned long do_mmap_pgoff(struct file
+ 			unsigned long *populate)
  {
  	struct mm_struct *mm = current->mm;
++	struct timespec ts_start, ts_end, ts_total_time;
  	vm_flags_t vm_flags;
-+	//struct timespec ts_start, ts_end, ts_total_time;
-+	//getnstimeofday(&ts_start);
++	if flags == (MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK) {
++		getnstimeofday(&ts_start);
++	}
++
  
  	*populate = 0;
  
-@@ -1402,6 +1406,9 @@ unsigned long do_mmap_pgoff(struct file
+@@ -1402,6 +1409,11 @@ unsigned long do_mmap_pgoff(struct file
  	    ((vm_flags & VM_LOCKED) ||
  	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
  		*populate = len;
-+	//getnstimeofday(&ts_end);
-+	//ts_total_time = timespec_sub(ts_end,ts_start);
-+	//etm_memmap(ts_total_time.tv_nsec);
++	if flags == (MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK) {
++		getnstimeofday(&ts_end);
++		ts_total_time = timespec_sub(ts_end,ts_start);
++		etm_mmap(ts_total_time.tv_nsec);
++	}
  	return addr;
  }
  
