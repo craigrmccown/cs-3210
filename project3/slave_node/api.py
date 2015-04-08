@@ -9,7 +9,7 @@ import sys
 
 node_id = int(sys.argv[1])
 port_number = int(sys.argv[2])
-app = Flask(__name__)
+app = Flask('rpfs_slave_api_' + str(node_id))
 mongo = MongoClient('localhost', 27017)
 db = mongo['rpfs_slave_db_' + str(node_id)]
 fs = GridFS(db)
@@ -26,7 +26,7 @@ def replicate_file(file_hash_ring_id):
     return put_file(file_hash_ring_id, replicated=True)
 
 
-@app.route('/files/<path:file_hash_ring_id>', methods=['GET'])
+@app.route('/files/<file_hash_ring_id>', methods=['GET'])
 def download_file(file_hash_ring_id):
     f = fs.find_one({'filename': file_hash_ring_id})
 
@@ -43,7 +43,7 @@ def download_file(file_hash_ring_id):
         return Response(status=404)
 
 
-@app.route('/files/<path:file_hash_ring_id>', methods=['DELETE'])
+@app.route('/files/<file_hash_ring_id>', methods=['DELETE'])
 def delete_file(file_hash_ring_id):
     f = db.fs.files.find_one({'filename': file_hash_ring_id})
 

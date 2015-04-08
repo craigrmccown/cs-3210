@@ -8,7 +8,7 @@ def replicate(node_id, file_hash_ring_id):
     db = mongo['rpfs_slave_db_' + str(node_id)]
     fs = GridFS(db)
 
-    topology = db.topology.find({'node_id': {'$ne': node_id}})
+    topology = db.topology.find()
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
     original_replica_node_id = get_next_v_node_id(file_hash_ring_id, sorted_v_node_ids)
     replica_node_id = original_replica_node_id

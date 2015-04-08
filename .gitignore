@@ -11,3 +11,4 @@ Module.symvers
 *.ko
 modules.order
 *.pyc
+.idea

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+MASTER_IP_ADDRESS=$1
+MASTER_PORT_NUMBER=$2
+SLAVE_NODE_ID=$(python register.py $MASTER_IP_ADDRESS $MASTER_PORT_NUMBER)
+SLAVE_PORT_NUMBER=$3
+
+#TODO run in daemon mode
+python api.py $SLAVE_NODE_ID $PORT_NUMBER
+
+python confirm_registration.py $MASTER_IP_ADDRESS $MASTER_PORT_NUMBER $SLAVE_NODE_ID $SLAVE_PORT_NUMBER
