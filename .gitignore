@@ -10,3 +10,4 @@ Module.symvers
 *.mod.c
 *.ko
 modules.order
+*.pyc
