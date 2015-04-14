@@ -49,10 +49,7 @@ def confirm_registration(slave_node_id, slave_node_port_number):
         'v_nodes': generate_unique_v_nodes(num_v_nodes, current_v_node_ids)
     }
 
-    cursor.rewind()
-
-    for node in cursor:
-        topology_queue.enqueue(jobs.notify_topology_change, new_node, node)
+    topology_queue.enqueue(jobs.notify_topology_addition, new_node)
 
     db.topology.insert(new_node)
 

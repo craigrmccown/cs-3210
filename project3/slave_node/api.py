@@ -67,6 +67,12 @@ def add_node_to_topology():
     return Response(status=200)
 
 
+@app.route('/topology/<failed_node_id>', methods=['DELETE'])
+def remove_node_from_topology(failed_node_id):
+    db.topology.remove({'node_id': int(failed_node_id)})
+    return Response(status=200)
+
+
 def put_file(file_hash_ring_id):
     f = request.files.get('file')
 
