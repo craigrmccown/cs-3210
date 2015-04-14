@@ -2,6 +2,8 @@ from flask import Flask, Response
 from pymongo import MongoClient
 from redis import Redis
 from rq import Queue
+import requests
+import threading
 import sys
 import math
 import random
@@ -12,7 +14,7 @@ port_number = sys.argv(1)
 app = Flask('rpfs_master_api')
 mongo = MongoClient('127.0.0.1', 27017)
 db = mongo.rpfs_master_db
-topology_queue = replication_queue = Queue('topology', connection=Redis(host='localhost', port=6379))
+topology_queue = Queue('topology', connection=Redis(host='localhost', port=6379))
 
 
 @app.route('/register', methods=['POST'])
@@ -25,10 +27,7 @@ def register():
         topology.append(node)
         current_node_ids.append(node.get('node_id'))
 
-    new_node_id = random.randint(0, 10000)
-
-    while new_node_id in current_node_ids:
-        new_node_id = random.randint(0, 10000)
+    new_node_id = generate_unique_node_id(current_node_ids)
 
     return Response({'node_id': new_node_id, 'topology': topology})
 
@@ -58,6 +57,15 @@ def confirm_registration(slave_node_id, slave_node_port_number):
     db.topology.insert(new_node)
 
 
+def generate_unique_node_id(current_node_ids):
+    new_node_id = random.randint(0, 10000)
+
+    while new_node_id in current_node_ids:
+        new_node_id = random.randint(0, 10000)
+
+    return new_node_id
+
+
 def generate_unique_v_nodes(num_v_nodes, current_v_node_ids):
     new_v_nodes = generate_random_v_nodes(num_v_nodes)
     new_v_nodes = filter(lambda v: v.get('hash_ring_id') not in current_v_node_ids, new_v_nodes)
@@ -79,5 +87,19 @@ def generate_random_v_nodes(num_v_nodes):
     return v_nodes
 
 
+def check_heartbeats():
+    threading.Timer(5, check_heartbeats).start()
+
+    cursor = db.topology.find()
+
+    for node in cursor:
+        try:
+            response = requests.get(''.join(['http://', node.get('ip_address'), ':', node.get('port_number'), '/heartbeat']), timeout=2)
+            assert response == 200
+        except (requests.ConnectionError, requests.Timeout, AssertionError):
+            topology_queue.enqueue(jobs.notify_topology_removal())
+
+
 if __name__ == '__main__':
+    check_heartbeats()
     app.run('127.0.0.1', port_number)

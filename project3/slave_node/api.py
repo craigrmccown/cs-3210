@@ -16,6 +16,11 @@ fs = GridFS(db)
 replication_queue = Queue('replication', connection=Redis(host='localhost', port=6379))
 
 
+@app.route('/heartbeat', methods=['GET'])
+def heartbeat():
+    return Response(status=200)
+
+
 @app.route('/files/<file_hash_ring_id>', methods=['POST'])
 def upload_file(file_hash_ring_id):
     response = put_file(file_hash_ring_id)
@@ -54,6 +59,12 @@ def delete_file(file_hash_ring_id):
         return Response(status=200)
     else:
         return Response(status=404)
+
+
+@app.route('/topology', methods=['POST'])
+def add_node_to_topology():
+    db.topology.insert(request.get_json(force=True))
+    return Response(status=200)
 
 
 def put_file(file_hash_ring_id):
