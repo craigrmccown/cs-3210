@@ -24,7 +24,7 @@ def heartbeat():
 @app.route('/files/<file_hash_ring_id>', methods=['POST'])
 def upload_file(file_hash_ring_id):
     response = put_file(file_hash_ring_id)
-    replication_queue.enqueue(jobs.replicate, node_id, int(file_hash_ring_id))
+    replication_queue.enqueue(jobs.replicate_file, node_id, int(file_hash_ring_id))
     return response
 
 
@@ -55,6 +55,7 @@ def delete_file(file_hash_ring_id):
     f = db.fs.files.find_one({'filename': file_hash_ring_id})
 
     if f:
+        replication_queue.enqueue(jobs.delete_from_replica_node, node_id, int(file_hash_ring_id))
         fs.delete(f['_id'])
         return Response(status=200)
     else:
@@ -63,7 +64,9 @@ def delete_file(file_hash_ring_id):
 
 @app.route('/topology', methods=['POST'])
 def add_node_to_topology():
-    db.topology.insert(request.get_json(force=True))
+    new_node = request.get_json(force=True)
+    replication_queue.enqueue(jobs.replicate_to_new_node, node_id, new_node.get('node_id'))
+    db.topology.insert(new_node)
     return Response(status=200)
 
 

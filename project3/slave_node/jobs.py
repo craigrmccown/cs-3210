@@ -3,7 +3,7 @@ from gridfs import GridFS
 import requests
 
 
-def replicate(node_id, file_hash_ring_id):
+def replicate_file(node_id, file_hash_ring_id):
     mongo = MongoClient('localhost', 27017)
     db = mongo['rpfs_slave_db_' + str(node_id)]
     fs = GridFS(db)
@@ -25,6 +25,22 @@ def replicate(node_id, file_hash_ring_id):
     if f:
         response = requests.post(build_url(replica_node, file_hash_ring_id), files={'file': (str(file_hash_ring_id), f.read(), f.content_type)})
         assert response.status_code == 200
+
+
+def delete_from_replica_node(node_id, file_hash_ring_id):
+    # find node who is current replica node of file
+    # delete file from node
+
+    pass
+
+
+def replicate_to_new_node(node_id, new_node_id):
+    # find all hash ring ids of files that now replicate to the new node
+    # copy each file over
+    # find all hash ring ids of files whose responsibility has been taken
+    # copy each file over
+
+    pass
 
 
 def build_topology_maps(topology):

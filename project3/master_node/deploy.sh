@@ -7,4 +7,4 @@ PORT_NUMBER=$1
 #TODO run in daemon mode
 echo "starting master node server..."
 python api.py $PORT_NUMBER
-echo "server started!
+echo "server started!"
