@@ -13,17 +13,19 @@ app = Flask('rpfs_slave_api_' + str(node_id))
 mongo = MongoClient('localhost', 27017)
 db = mongo['rpfs_slave_db_' + str(node_id)]
 fs = GridFS(db)
-replication_queue = Queue(connection=Redis(host='localhost', port=6379))
+replication_queue = Queue('replication', connection=Redis(host='localhost', port=6379))
 
 
 @app.route('/files/<file_hash_ring_id>', methods=['POST'])
 def upload_file(file_hash_ring_id):
-    return put_file(file_hash_ring_id)
+    response = put_file(file_hash_ring_id)
+    replication_queue.enqueue(jobs.replicate, node_id, int(file_hash_ring_id))
+    return response
 
 
 @app.route('/replicate/<file_hash_ring_id>', methods=['POST'])
 def replicate_file(file_hash_ring_id):
-    return put_file(file_hash_ring_id, replicated=True)
+    return put_file(file_hash_ring_id)
 
 
 @app.route('/files/<file_hash_ring_id>', methods=['GET'])
@@ -54,7 +56,7 @@ def delete_file(file_hash_ring_id):
         return Response(status=404)
 
 
-def put_file(file_hash_ring_id, replicated=False):
+def put_file(file_hash_ring_id):
     f = request.files.get('file')
 
     if f:
@@ -64,9 +66,6 @@ def put_file(file_hash_ring_id, replicated=False):
             fs.delete(existing['_id'])
 
         fs.put(f, filename=file_hash_ring_id, content_type=f.headers.get('Content-Type'))
-
-        if not replicated:
-            replication_queue.enqueue(jobs.replicate, node_id, int(file_hash_ring_id))
 
         return Response(status=200)
     else:
