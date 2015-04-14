@@ -10,7 +10,7 @@ import random
 import jobs
 
 
-port_number = sys.argv(1)
+port_number = int(sys.argv(1))
 app = Flask('rpfs_master_api')
 mongo = MongoClient('127.0.0.1', 27017)
 db = mongo.rpfs_master_db
