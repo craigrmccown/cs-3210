@@ -85,7 +85,7 @@ def put_file(file_hash_ring_id):
         if existing:
             fs.delete(existing['_id'])
 
-        fs.put(f, filename=file_hash_ring_id, content_type=f.headers.get('Content-Type'))
+        fs.put(f, filename=file_hash_ring_id, hash_ring_id=int(file_hash_ring_id), content_type=f.headers.get('Content-Type'))
 
         return Response(status=200)
     else:
