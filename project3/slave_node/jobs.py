@@ -41,7 +41,7 @@ def replicate_to_new_node(node_id, new_node_id):
     db = mongo['rpfs_slave_db_' + str(node_id)]
     fs = GridFS(db)
     topology = list(db.topology.find())
-    local_v_nodes = filter(lambda node: node.node_id == node_id, topology)[0].get('v_nodes')
+    local_v_nodes = filter(lambda node: node.get('node_id') == node_id, topology)[0].get('v_nodes')
     responses = []
 
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
@@ -56,7 +56,8 @@ def replicate_to_new_node(node_id, new_node_id):
         next_node = v_node_map.get(next_v_node_id)
 
         if next_node.get('node_id') == new_node_id:
-            previous_v_node_id = get_previous_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids)
+            previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
+            previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
             pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_v_node_id, v_node.get('hash_ring_id'))
 
             file_cursor = db.fs.files.find({
@@ -82,7 +83,8 @@ def replicate_to_new_node(node_id, new_node_id):
 
     # replicate files to the new node whose responsibility has been taken away by the new node
     for v_node in local_v_nodes:
-        previous_v_node_id = get_previous_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids)
+        previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
+        previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
         previous_node = v_node_map.get(previous_v_node_id)
 
         if previous_node.get('node_id') == new_node_id:
@@ -152,8 +154,10 @@ def get_next_node(topology, hash_ring_id):
         return
 
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
-    immediate_v_node_id = get_next_v_node_id(hash_ring_id, sorted_v_node_ids)
-    return v_node_map.get(get_next_distinct_v_node_id(immediate_v_node_id, sorted_v_node_ids, v_node_map))
+    immediate_v_node_id_index = get_next_v_node_id_index(hash_ring_id, sorted_v_node_ids)
+    immediate_v_node_id = sorted_v_node_ids[immediate_v_node_id_index]
+    distinct_v_node_id = get_next_distinct_v_node_id(immediate_v_node_id, sorted_v_node_ids, v_node_map)
+    return v_node_map.get(distinct_v_node_id)
 
 
 def get_previous_node(topology, hash_ring_id):
@@ -161,21 +165,29 @@ def get_previous_node(topology, hash_ring_id):
         return
 
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
-    immediate_v_node_id = get_previous_v_node_id(hash_ring_id, sorted_v_node_ids)
-    return v_node_map.get(get_previous_distinct_v_node_id(immediate_v_node_id, sorted_v_node_ids, v_node_map))
+    immediate_v_node_id_index = get_previous_v_node_id_index(hash_ring_id, sorted_v_node_ids)
+    immediate_v_node_id = sorted_v_node_ids[immediate_v_node_id_index]
+    distinct_v_node_id = get_previous_distinct_v_node_id(immediate_v_node_id, sorted_v_node_ids, v_node_map)
+    return v_node_map.get(distinct_v_node_id)
 
 
-def get_next_distinct_v_node_id(hash_ring_id, sorted_v_node_ids, v_node_map):
-    starting_node = v_node_map.get(hash_ring_id)
+def get_next_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_node_map):
+    starting_node = v_node_map.get(v_node_hash_ring_id)
 
     assert starting_node
 
-    distinct_v_node_id = get_next_v_node_id(hash_ring_id, sorted_v_node_ids)
+    distinct_v_node_id_index = get_next_v_node_id_index(v_node_hash_ring_id, sorted_v_node_ids)
+    distinct_v_node_id = sorted_v_node_ids[distinct_v_node_id_index]
 
     while v_node_map[distinct_v_node_id]['node_id'] == starting_node['node_id']:
-        distinct_v_node_id = get_next_v_node_id(distinct_v_node_id, sorted_v_node_ids)
+        distinct_v_node_id_index += 1
 
-        if distinct_v_node_id == hash_ring_id:
+        if distinct_v_node_id == len(sorted_v_node_ids):
+            distinct_v_node_id_index = 0
+
+        distinct_v_node_id = sorted_v_node_ids[distinct_v_node_id_index]
+
+        if distinct_v_node_id == v_node_hash_ring_id:
             return
 
     return distinct_v_node_id
@@ -186,10 +198,16 @@ def get_previous_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_no
 
     assert starting_node
 
-    distinct_v_node_id = get_previous_v_node_id(v_node_hash_ring_id, sorted_v_node_ids)
+    distinct_v_node_id_index = get_previous_v_node_id_index(v_node_hash_ring_id, sorted_v_node_ids)
+    distinct_v_node_id = sorted_v_node_ids[distinct_v_node_id_index]
 
     while v_node_map[distinct_v_node_id]['node_id'] == starting_node['node_id']:
-        distinct_v_node_id = get_previous_v_node_id(distinct_v_node_id, sorted_v_node_ids)
+        distinct_v_node_id_index -= 1
+
+        if distinct_v_node_id == -1:
+            distinct_v_node_id_index = len(sorted_v_node_ids) - 1
+
+        distinct_v_node_id = sorted_v_node_ids[distinct_v_node_id_index]
 
         if distinct_v_node_id == v_node_hash_ring_id:
             return
@@ -197,20 +215,20 @@ def get_previous_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_no
     return distinct_v_node_id
 
 
-def get_next_v_node_id(hash_ring_id, sorted_v_node_ids):
+def get_next_v_node_id_index(hash_ring_id, sorted_v_node_ids):
     for i in range(len(sorted_v_node_ids)):
         if hash_ring_id > sorted_v_node_ids[i]:
-            return sorted_v_node_ids[i - 1]
+            return i - 1
 
-    return sorted_v_node_ids[0]
+    return 0
 
 
-def get_previous_v_node_id(hash_ring_id, sorted_v_node_ids):
+def get_previous_v_node_id_index(hash_ring_id, sorted_v_node_ids):
     for i in range(len(sorted_v_node_ids)):
         if hash_ring_id < sorted_v_node_ids[i]:
-            return sorted_v_node_ids[i - 1]
+            return i - 1
 
-    return sorted_v_node_ids[-1]
+    return -1
 
 
 def send_file(f, node):
