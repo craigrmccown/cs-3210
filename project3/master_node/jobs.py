@@ -25,7 +25,7 @@ def notify_topology_removal(failed_node):
     responses = []
 
     for node in cursor:
-        responses.append(requests.delete(build_url_from_node(node) + '/topology/' + str(node.get('node_id'))))
+        responses.append(requests.delete(build_url_from_node(node) + '/topology/' + str(failed_node.get('node_id'))))
 
     assert_successful_responses(responses)
 

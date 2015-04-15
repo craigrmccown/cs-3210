@@ -24,6 +24,7 @@ def register():
     current_node_ids = []
 
     for node in cursor:
+        del node['_id']
         topology.append(node)
         current_node_ids.append(node.get('node_id'))
 
@@ -96,11 +97,11 @@ def check_heartbeats():
     for node in cursor:
         try:
             response = requests.get(''.join(['http://', node.get('ip_address'), ':', str(node.get('port_number')), '/heartbeat']), timeout=2)
-            assert response == 200
+            assert response.status_code == 200
         except (requests.ConnectionError, requests.Timeout, AssertionError):
             topology_queue.enqueue(jobs.notify_topology_removal, node)
 
 
 if __name__ == '__main__':
-    # check_heartbeats()
+    check_heartbeats()
     app.run('127.0.0.1', port_number)

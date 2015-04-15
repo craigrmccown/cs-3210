@@ -65,8 +65,12 @@ def delete_file(file_hash_ring_id):
 @app.route('/topology', methods=['POST'])
 def add_node_to_topology():
     new_node = request.get_json(force=True)
-    replication_queue.enqueue(jobs.replicate_to_new_node, node_id, new_node.get('node_id'))
-    db.topology.insert(new_node)
+    existing = db.topology.find_one({'node_id': new_node.get('node_id')})
+
+    if not existing:
+        replication_queue.enqueue(jobs.replicate_to_new_node, node_id, new_node.get('node_id'))
+        db.topology.insert(new_node)
+
     return Response(status=200)
 
 

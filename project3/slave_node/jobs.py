@@ -164,7 +164,7 @@ def get_next_distinct_v_node_id(hash_ring_id, sorted_v_node_ids, v_node_map):
 
     distinct_v_node_id = get_next_v_node_id(hash_ring_id, sorted_v_node_ids)
 
-    while v_node_map.get[distinct_v_node_id]['node_id'] == starting_node['node_id']:
+    while v_node_map[distinct_v_node_id]['node_id'] == starting_node['node_id']:
         distinct_v_node_id = get_next_v_node_id(distinct_v_node_id, sorted_v_node_ids)
 
         if distinct_v_node_id == hash_ring_id:
@@ -180,7 +180,7 @@ def get_previous_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_no
 
     distinct_v_node_id = get_previous_v_node_id(v_node_hash_ring_id, sorted_v_node_ids)
 
-    while v_node_map.get[distinct_v_node_id]['node_id'] == starting_node['node_id']:
+    while v_node_map[distinct_v_node_id]['node_id'] == starting_node['node_id']:
         distinct_v_node_id = get_previous_v_node_id(distinct_v_node_id, sorted_v_node_ids)
 
         if distinct_v_node_id == v_node_hash_ring_id:
@@ -191,7 +191,7 @@ def get_previous_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_no
 
 def get_next_v_node_id(hash_ring_id, sorted_v_node_ids):
     for i in range(len(sorted_v_node_ids)):
-        if hash_ring_id < sorted_v_node_ids[i]:
+        if hash_ring_id > sorted_v_node_ids[i]:
             return sorted_v_node_ids[i - 1]
 
     return sorted_v_node_ids[0]
@@ -207,8 +207,8 @@ def get_previous_v_node_id(hash_ring_id, sorted_v_node_ids):
 
 def send_file(f, node):
     return requests.post(
-        build_url(node) + '/replicate/' + str(f.get('hash_ring_id')),
-        files={'file': (str(f.get('hash_ring_id')), f.read(), f.content_type)}
+        build_url(node) + '/replicate/' + str(f.hash_ring_id),
+        files={'file': (str(f.hash_ring_id), f.read(), f.content_type)}
     )
 
 
