@@ -5,14 +5,13 @@ import requests
 def notify_topology_addition(new_node):
     mongo = MongoClient('localhost', 27017)
     db = mongo.rpfs_master_db
-    cursor = db.topology.find({'node_id': {'$ne': new_node.get('node_id')}})
+    cursor = db.topology.find()
     responses = []
 
     for node in cursor:
-        node_dict = dict(node)
-        del node_dict['_id']
+        del node['_id']
         responses.append(requests.post(build_url_from_node(node) + '/topology', json=new_node))
-        responses.append(requests.post(build_url_from_node(new_node) + '/topology', json=node_dict))
+        responses.append(requests.post(build_url_from_node(new_node) + '/topology', json=node))
 
     assert_successful_responses(responses)
 

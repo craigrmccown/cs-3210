@@ -8,7 +8,7 @@ def replicate_file(node_id, file_hash_ring_id):
     mongo = MongoClient('localhost', 27017)
     db = mongo['rpfs_slave_db_' + str(node_id)]
     fs = GridFS(db)
-    topology = db.topology.find()
+    topology = list(db.topology.find())
 
     replica_node = get_next_node(topology, file_hash_ring_id)
 
@@ -25,7 +25,7 @@ def replicate_file(node_id, file_hash_ring_id):
 def delete_from_replica_node(node_id, file_hash_ring_id):
     mongo = MongoClient('localhost', 27017)
     db = mongo['rpfs_slave_db_' + str(node_id)]
-    topology = db.topology.find()
+    topology = list(db.topology.find())
 
     replica_node = get_next_node(topology, file_hash_ring_id)
 
@@ -39,82 +39,84 @@ def delete_from_replica_node(node_id, file_hash_ring_id):
 def replicate_to_new_node(node_id, new_node_id):
     mongo = MongoClient('localhost', 27017)
     db = mongo['rpfs_slave_db_' + str(node_id)]
-    topology = db.topology.find()[:]
+    fs = GridFS(db)
+    topology = list(db.topology.find())
+    local_v_nodes = filter(lambda node: node.node_id == node_id, topology)[0].get('v_nodes')
     responses = []
 
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
 
     # replicate files to new node if it becomes the current node's replica node
-    for node in topology:
-        for v_node in node.get('v_nodes'):
-            next_v_node_id = get_next_distinct_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids, v_node_map)
+    for v_node in local_v_nodes:
+        next_v_node_id = get_next_distinct_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids, v_node_map)
 
-            if not next_v_node_id:
-                break
+        if not next_v_node_id:
+            break
 
-            next_node = v_node_map.get(next_v_node_id)
+        next_node = v_node_map.get(next_v_node_id)
 
-            if next_node.get('node_id') == new_node_id:
-                previous_v_node_id = get_previous_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids)
-                pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_v_node_id, v_node.get('hash_ring_id'))
+        if next_node.get('node_id') == new_node_id:
+            previous_v_node_id = get_previous_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids)
+            pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_v_node_id, v_node.get('hash_ring_id'))
 
-                file_cursor = db.fs.files.find({
-                    '$and': [
-                        {
-                            'hash_ring_id': {
-                                '$gt': pre_zero_low,
-                                '$lte': pre_zero_high
-                            }
-                        },
-                        {
-                            'hash_ring_id': {
-                                '$gt': post_zero_low,
-                                '$lte': post_zero_high
-                            }
+            file_cursor = db.fs.files.find({
+                '$and': [
+                    {
+                        'hash_ring_id': {
+                            '$gt': pre_zero_low,
+                            '$lte': pre_zero_high
                         }
-                    ]
-                })
+                    },
+                    {
+                        'hash_ring_id': {
+                            '$gt': post_zero_low,
+                            '$lte': post_zero_high
+                        }
+                    }
+                ]
+            })
 
-                for f in file_cursor:
-                    responses.append(send_file(f, next_node))
+            for fdoc in file_cursor:
+                f = fs.find_one({'filename': fdoc.get('filename')})
+                responses.append(send_file(f, next_node))
 
     # replicate files to the new node whose responsibility has been taken away by the new node
-    for node in topology:
-        for v_node in node.get('v_nodes'):
-            previous_v_node_id = get_previous_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids)
-            previous_node = v_node_map.get(previous_v_node_id)
+    for v_node in local_v_nodes:
+        previous_v_node_id = get_previous_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids)
+        previous_node = v_node_map.get(previous_v_node_id)
 
-            if previous_node.get('node_id') == new_node_id:
-                previous_previous_v_node_id = get_previous_distinct_v_node_id(
-                    previous_v_node_id,
-                    sorted_v_node_ids,
-                    v_node_map
-                )
+        if previous_node.get('node_id') == new_node_id:
+            previous_previous_v_node_id = get_previous_distinct_v_node_id(
+                previous_v_node_id,
+                sorted_v_node_ids,
+                v_node_map
+            )
 
-                if not previous_previous_v_node_id:
-                    break
+            if not previous_previous_v_node_id:
+                break
 
-                pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_previous_v_node_id, previous_v_node_id)
+            pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_previous_v_node_id, previous_v_node_id)
 
-                file_cursor = db.fs.files.find({
-                    '$and': [
-                        {
-                            'hash_ring_id': {
-                                '$gt': pre_zero_low,
-                                '$lte': pre_zero_high
-                            }
-                        },
-                        {
-                            'hash_ring_id': {
-                                '$gt': post_zero_low,
-                                '$lte': post_zero_high
-                            }
+            file_cursor = db.fs.files.find({
+                '$and': [
+                    {
+                        'hash_ring_id': {
+                            '$gt': pre_zero_low,
+                            '$lte': pre_zero_high
                         }
-                    ]
-                })
+                    },
+                    {
+                        'hash_ring_id': {
+                            '$gt': post_zero_low,
+                            '$lte': post_zero_high
+                        }
+                    }
+                ]
+            })
 
-                for f in file_cursor:
-                    responses.append(send_file(f, previous_node))
+            for fdoc in file_cursor:
+                f = fs.find_one({'filename': fdoc.get('filename')})
+                responses.append(send_file(f, previous_node))
 
     assert_successful_responses(responses)
 
@@ -146,12 +148,18 @@ def build_topology_maps(topology):
 
 
 def get_next_node(topology, hash_ring_id):
+    if len(topology) == 0:
+        return
+
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
     immediate_v_node_id = get_next_v_node_id(hash_ring_id, sorted_v_node_ids)
     return v_node_map.get(get_next_distinct_v_node_id(immediate_v_node_id, sorted_v_node_ids, v_node_map))
 
 
 def get_previous_node(topology, hash_ring_id):
+    if len(topology) == 0:
+        return
+
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
     immediate_v_node_id = get_previous_v_node_id(hash_ring_id, sorted_v_node_ids)
     return v_node_map.get(get_previous_distinct_v_node_id(immediate_v_node_id, sorted_v_node_ids, v_node_map))
