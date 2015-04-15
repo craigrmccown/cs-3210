@@ -2,6 +2,7 @@ from pymongo import MongoClient
 from gridfs import GridFS
 import requests
 import math
+import sys
 
 
 def replicate_file(node_id, file_hash_ring_id):
@@ -32,7 +33,8 @@ def delete_from_replica_node(node_id, file_hash_ring_id):
     if not replica_node:
         return
 
-    response = requests.delete(build_url(replica_node) + '/files/' + str(file_hash_ring_id))
+    response = requests.delete(build_url(replica_node) + '/replicate/' + str(file_hash_ring_id))
+    sys.stderr.write(str(response.status_code) + '\n')
     assert response.status_code == 200
 
 
@@ -60,8 +62,8 @@ def replicate_to_new_node(node_id, new_node_id):
             previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
             pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_v_node_id, v_node.get('hash_ring_id'))
 
-            file_cursor = db.fs.files.find({
-                '$and': [
+            files = list(db.fs.files.find({
+                '$or': [
                     {
                         'hash_ring_id': {
                             '$gt': pre_zero_low,
@@ -75,9 +77,9 @@ def replicate_to_new_node(node_id, new_node_id):
                         }
                     }
                 ]
-            })
+            }))
 
-            for fdoc in file_cursor:
+            for fdoc in files:
                 f = fs.find_one({'filename': fdoc.get('filename')})
                 responses.append(send_file(f, next_node))
 
@@ -100,7 +102,7 @@ def replicate_to_new_node(node_id, new_node_id):
             pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_previous_v_node_id, previous_v_node_id)
 
             file_cursor = db.fs.files.find({
-                '$and': [
+                '$or': [
                     {
                         'hash_ring_id': {
                             '$gt': pre_zero_low,
@@ -124,8 +126,7 @@ def replicate_to_new_node(node_id, new_node_id):
 
 
 def resolve_hash_ring_bounds(low, high):
-    pre_zero_low = math.pow(2, 31) - 1
-    pre_zero_high = math.pow(2, 32) - 1
+    pre_zero_low = pre_zero_high = math.pow(2, 31) - 1
     post_zero_low = 0
     post_zero_high = high
 
@@ -217,15 +218,15 @@ def get_previous_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_no
 
 def get_next_v_node_id_index(hash_ring_id, sorted_v_node_ids):
     for i in range(len(sorted_v_node_ids)):
-        if hash_ring_id > sorted_v_node_ids[i]:
-            return i - 1
+        if hash_ring_id < sorted_v_node_ids[i]:
+            return i
 
     return 0
 
 
 def get_previous_v_node_id_index(hash_ring_id, sorted_v_node_ids):
     for i in range(len(sorted_v_node_ids)):
-        if hash_ring_id < sorted_v_node_ids[i]:
+        if hash_ring_id <= sorted_v_node_ids[i]:
             return i - 1
 
     return -1
