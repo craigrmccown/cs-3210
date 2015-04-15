@@ -8,3 +8,7 @@ PORT_NUMBER=$1
 echo "starting master node server..."
 python api.py $PORT_NUMBER
 echo "server started!"
+
+#TODO run topology worker
+echo "starting replication worker..."
+echo "replication worker started!"

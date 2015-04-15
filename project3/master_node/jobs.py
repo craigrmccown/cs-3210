@@ -3,32 +3,34 @@ import requests
 
 
 def notify_topology_addition(new_node):
-    db = MongoClient.rpfs_master_db
-    db.topology.remove({'node_id': new_node.get('node_id')})
+    mongo = MongoClient('localhost', 27017)
+    db = mongo.rpfs_master_db
     cursor = db.topology.find()
     responses = []
 
     for node in cursor:
-        responses.append(requests.post(build_url_from_node(node) + '/topology', new_node))
-        responses.append(requests.post(build_url_from_node(new_node) + '/topology', node))
+        del node['_id']
+        responses.append(requests.post(build_url_from_node(node) + '/topology', json=new_node))
+        responses.append(requests.post(build_url_from_node(new_node) + '/topology', json=node))
 
     assert_successful_responses(responses)
 
 
 def notify_topology_removal(failed_node):
-    db = MongoClient.rpfs_master_db
+    mongo = MongoClient('localhost', 27017)
+    db = mongo.rpfs_master_db
     db.topology.remove({'node_id': failed_node.get('node_id')})
     cursor = db.topology.find()
     responses = []
 
     for node in cursor:
-        responses.append(requests.delete(build_url_from_node(node) + '/topology/' + str(node.get('node_id'))))
+        responses.append(requests.delete(build_url_from_node(node) + '/topology/' + str(failed_node.get('node_id'))))
 
     assert_successful_responses(responses)
 
 
 def build_url_from_node(node):
-    return ''.join(['http://', node.get('ip_address'), ':', node.get('port_number')])
+    return ''.join(['http://', node.get('ip_address'), ':', str(node.get('port_number'))])
 
 
 def assert_successful_responses(responses):

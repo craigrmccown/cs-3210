@@ -1,4 +1,4 @@
-from flask import Flask, Response
+from flask import Flask, Response, jsonify
 from pymongo import MongoClient
 from redis import Redis
 from rq import Queue
@@ -10,7 +10,7 @@ import random
 import jobs
 
 
-port_number = int(sys.argv(1))
+port_number = int(sys.argv[1])
 app = Flask('rpfs_master_api')
 mongo = MongoClient('127.0.0.1', 27017)
 db = mongo.rpfs_master_db
@@ -24,15 +24,16 @@ def register():
     current_node_ids = []
 
     for node in cursor:
+        del node['_id']
         topology.append(node)
         current_node_ids.append(node.get('node_id'))
 
     new_node_id = generate_unique_node_id(current_node_ids)
 
-    return Response({'node_id': new_node_id, 'topology': topology})
+    return jsonify({'node_id': new_node_id, 'topology': topology})
 
 
-@app.route('/confirm-registration/<slave_node_id>/<slave_node_port_number')
+@app.route('/confirm-registration/<slave_node_id>/<slave_node_port_number>', methods=['POST'])
 def confirm_registration(slave_node_id, slave_node_port_number):
     num_v_nodes = 50
     cursor = db.topology.find()
@@ -49,9 +50,13 @@ def confirm_registration(slave_node_id, slave_node_port_number):
         'v_nodes': generate_unique_v_nodes(num_v_nodes, current_v_node_ids)
     }
 
-    topology_queue.enqueue(jobs.notify_topology_addition, new_node)
+    existing = db.topology.find_one({'node_id': int(slave_node_id)})
 
-    db.topology.insert(new_node)
+    if not existing:
+        topology_queue.enqueue(jobs.notify_topology_addition, new_node)
+        db.topology.insert(new_node)
+
+    return Response(status=200)
 
 
 def generate_unique_node_id(current_node_ids):
@@ -85,16 +90,16 @@ def generate_random_v_nodes(num_v_nodes):
 
 
 def check_heartbeats():
-    threading.Timer(5, check_heartbeats).start()
+    threading.Timer(1, check_heartbeats).start()
 
     cursor = db.topology.find()
 
     for node in cursor:
         try:
-            response = requests.get(''.join(['http://', node.get('ip_address'), ':', node.get('port_number'), '/heartbeat']), timeout=2)
-            assert response == 200
+            response = requests.get(''.join(['http://', node.get('ip_address'), ':', str(node.get('port_number')), '/heartbeat']), timeout=2)
+            assert response.status_code == 200
         except (requests.ConnectionError, requests.Timeout, AssertionError):
-            topology_queue.enqueue(jobs.notify_topology_removal())
+            topology_queue.enqueue(jobs.notify_topology_removal, node)
 
 
 if __name__ == '__main__':
