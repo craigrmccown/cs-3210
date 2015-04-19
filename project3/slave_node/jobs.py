@@ -2,7 +2,6 @@ from pymongo import MongoClient
 from gridfs import GridFS
 import requests
 import math
-import sys
 
 
 def replicate_file(node_id, file_hash_ring_id):
@@ -34,7 +33,6 @@ def delete_from_replica_node(node_id, file_hash_ring_id):
         return
 
     response = requests.delete(build_url(replica_node) + '/replicate/' + str(file_hash_ring_id))
-    sys.stderr.write(str(response.status_code) + '\n')
     assert response.status_code == 200
 
 
@@ -101,27 +99,42 @@ def recover_from_failed_node(node_id, failed_v_nodes):
 
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
 
-    # replicate files whose responsibility has been assumed by another node due to the failure
+    # replicate files whose replica node has failed
     for v_node in local_v_nodes:
         next_v_node_id = get_next_distinct_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids, v_node_map)
 
         if not next_v_node_id:
             break
 
+        previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
+        previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
+        pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(v_node.get('hash_ring_id'), next_v_node_id)
+
         for failed_v_node in failed_v_nodes:
-            pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(v_node.get('hash_ring_id'), next_v_node_id)
-
             if (pre_zero_low < failed_v_node.get('hash_ring_id') <= pre_zero_high) or (post_zero_low <= failed_v_node.get('hash_ring_id') <= post_zero_high):
-                previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
-                previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
-
                 fdocs = get_file_documents_between(db, previous_v_node_id, v_node.get('hash_ring_id'))
 
                 for fdoc in fdocs:
                     f = fs.find_one({'filename': fdoc.get('filename')})
-                    sys.stderr.write(str(fdoc) + '\n')
-                    sys.stderr.write(fdoc.get('filename') + '\n')
-                    sys.stderr.write(str(f) + '\n')
+                    responses.append(send_file(f, v_node_map.get(next_v_node_id)))
+
+    # replicate files who have just been picked up by another node
+    for v_node in local_v_nodes:
+        next_v_node_id = get_next_distinct_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids, v_node_map)
+
+        if not next_v_node_id:
+            break
+
+        previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
+        previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
+        pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(sorted_v_node_ids[previous_v_node_id_index], v_node.get('hash_ring_id'))
+
+        for failed_v_node in failed_v_nodes:
+            if (pre_zero_low < failed_v_node.get('hash_ring_id') <= pre_zero_high) or (post_zero_low <= failed_v_node.get('hash_ring_id') <= post_zero_high):
+                fdocs = get_file_documents_between(db, previous_v_node_id, failed_v_node.get('hash_ring_id'))
+
+                for fdoc in fdocs:
+                    f = fs.find_one({'filename': fdoc.get('filename')})
                     responses.append(send_file(f, v_node_map.get(next_v_node_id)))
 
     assert_successful_responses(responses)

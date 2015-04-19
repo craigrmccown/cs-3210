@@ -61,6 +61,8 @@ def delete_file(file_hash_ring_id):
     if response.status_code == 200:
         replication_queue.enqueue(jobs.delete_from_replica_node, node_id, int(file_hash_ring_id))
 
+    return response
+
 
 @app.route('/topology', methods=['POST'])
 def add_node_to_topology():
