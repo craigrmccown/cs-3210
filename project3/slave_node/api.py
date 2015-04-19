@@ -82,7 +82,7 @@ def remove_node_from_topology(failed_node_id):
         return Response(status=404)
 
     db.topology.remove({'node_id': int(failed_node_id)})
-    replication_queue.enqueue(jobs.recover_from_failed_node(node_id, failed_node.get('v_nodes')))
+    replication_queue.enqueue(jobs.recover_from_failed_node, node_id, failed_node.get('v_nodes'))
 
     return Response(status=200)
 

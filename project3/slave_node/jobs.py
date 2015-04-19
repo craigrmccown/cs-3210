@@ -109,9 +109,9 @@ def recover_from_failed_node(node_id, failed_v_nodes):
             break
 
         for failed_v_node in failed_v_nodes:
-            failed_next_v_node_id = get_next_distinct_v_node_id(failed_v_node.get('hash_ring_id'), sorted_v_node_ids, v_node_map)
+            pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(v_node.get('hash_ring_id'), next_v_node_id)
 
-            if next_v_node_id == failed_next_v_node_id:
+            if (pre_zero_low < failed_v_node.get('hash_ring_id') <= pre_zero_high) or (post_zero_low <= failed_v_node.get('hash_ring_id') <= post_zero_high):
                 previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
                 previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
 
@@ -119,6 +119,9 @@ def recover_from_failed_node(node_id, failed_v_nodes):
 
                 for fdoc in fdocs:
                     f = fs.find_one({'filename': fdoc.get('filename')})
+                    sys.stderr.write(str(fdoc) + '\n')
+                    sys.stderr.write(fdoc.get('filename') + '\n')
+                    sys.stderr.write(str(f) + '\n')
                     responses.append(send_file(f, v_node_map.get(next_v_node_id)))
 
     assert_successful_responses(responses)
@@ -162,7 +165,7 @@ def get_file_documents_between(db, low, high):
             },
             {
                 'hash_ring_id': {
-                    '$gt': post_zero_low,
+                    '$gte': post_zero_low,
                     '$lte': post_zero_high
                 }
             }
