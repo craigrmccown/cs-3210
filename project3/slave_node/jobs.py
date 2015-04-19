@@ -60,26 +60,9 @@ def replicate_to_new_node(node_id, new_node_id):
         if next_node.get('node_id') == new_node_id:
             previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
             previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
-            pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_v_node_id, v_node.get('hash_ring_id'))
+            fdocs = get_file_documents_between(db, previous_v_node_id, v_node.get('hash_ring_id'))
 
-            files = list(db.fs.files.find({
-                '$or': [
-                    {
-                        'hash_ring_id': {
-                            '$gt': pre_zero_low,
-                            '$lte': pre_zero_high
-                        }
-                    },
-                    {
-                        'hash_ring_id': {
-                            '$gt': post_zero_low,
-                            '$lte': post_zero_high
-                        }
-                    }
-                ]
-            }))
-
-            for fdoc in files:
+            for fdoc in fdocs:
                 f = fs.find_one({'filename': fdoc.get('filename')})
                 responses.append(send_file(f, next_node))
 
@@ -99,28 +82,44 @@ def replicate_to_new_node(node_id, new_node_id):
             if not previous_previous_v_node_id:
                 break
 
-            pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(previous_previous_v_node_id, previous_v_node_id)
+            fdocs = get_file_documents_between(db, previous_previous_v_node_id, previous_v_node_id)
 
-            file_cursor = db.fs.files.find({
-                '$or': [
-                    {
-                        'hash_ring_id': {
-                            '$gt': pre_zero_low,
-                            '$lte': pre_zero_high
-                        }
-                    },
-                    {
-                        'hash_ring_id': {
-                            '$gt': post_zero_low,
-                            '$lte': post_zero_high
-                        }
-                    }
-                ]
-            })
-
-            for fdoc in file_cursor:
+            for fdoc in fdocs:
                 f = fs.find_one({'filename': fdoc.get('filename')})
                 responses.append(send_file(f, previous_node))
+
+    assert_successful_responses(responses)
+
+
+def recover_from_failed_node(node_id, failed_v_nodes):
+    mongo = MongoClient('localhost', 27017)
+    db = mongo['rpfs_slave_db_' + str(node_id)]
+    fs = GridFS(db)
+    topology = list(db.topology.find())
+    local_v_nodes = filter(lambda node: node.get('node_id') == node_id, topology)[0].get('v_nodes')
+    responses = []
+
+    sorted_v_node_ids, v_node_map = build_topology_maps(topology)
+
+    # replicate files whose responsibility has been assumed by another node due to the failure
+    for v_node in local_v_nodes:
+        next_v_node_id = get_next_distinct_v_node_id(v_node.get('hash_ring_id'), sorted_v_node_ids, v_node_map)
+
+        if not next_v_node_id:
+            break
+
+        for failed_v_node in failed_v_nodes:
+            failed_next_v_node_id = get_next_distinct_v_node_id(failed_v_node.get('hash_ring_id'), sorted_v_node_ids, v_node_map)
+
+            if next_v_node_id == failed_next_v_node_id:
+                previous_v_node_id_index = get_previous_v_node_id_index(v_node.get('hash_ring_id'), sorted_v_node_ids)
+                previous_v_node_id = sorted_v_node_ids[previous_v_node_id_index]
+
+                fdocs = get_file_documents_between(db, previous_v_node_id, v_node.get('hash_ring_id'))
+
+                for fdoc in fdocs:
+                    f = fs.find_one({'filename': fdoc.get('filename')})
+                    responses.append(send_file(f, v_node_map.get(next_v_node_id)))
 
     assert_successful_responses(responses)
 
@@ -148,6 +147,27 @@ def build_topology_maps(topology):
             v_node_map[v_node.get('hash_ring_id')] = node
 
     return sorted(v_node_ids), v_node_map
+
+
+def get_file_documents_between(db, low, high):
+    pre_zero_low, pre_zero_high, post_zero_low, post_zero_high = resolve_hash_ring_bounds(low, high)
+
+    return db.fs.files.find({
+        '$or': [
+            {
+                'hash_ring_id': {
+                    '$gt': pre_zero_low,
+                    '$lte': pre_zero_high
+                }
+            },
+            {
+                'hash_ring_id': {
+                    '$gt': post_zero_low,
+                    '$lte': post_zero_high
+                }
+            }
+        ]
+    })
 
 
 def get_next_node(topology, hash_ring_id):
