@@ -16,9 +16,11 @@ mongoc_collection_t *collection;
 mongoc_cursor_t *cursor;
 bson_t *query;
 
+
 //Support fields
 char *client_str;
 char *get_url;
+char *master = "rpfs_master_db";
 
 //CURL relevant structs
 CURL *curl_handle;
@@ -267,6 +269,138 @@ static size_t read_callback(void *ptr, size_t size, size_t nmemb,
     return retcode;
 }
 
+int pfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+{
+    int retstat = 0;
+    //BBFS code -> convert to MongoDB code
+/*
+    log_msg("\nbb_write(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
+            path, buf, size, offset, fi);
+    // no need to get fpath on this one, since I work from fi->fh not the path
+    log_fi(fi);
+
+    retstat = pwrite(fi->fh, buf, size, offset);
+    if (retstat < 0)
+        retstat = bb_error("bb_write pwrite");*/
+
+    return retstat;
+}
+
+/** Possibly flush cached data
+ *
+ * BIG NOTE: This is not equivalent to fsync().  It's not a
+ * request to sync dirty data.
+ *
+ * Flush is called on each close() of a file descriptor.  So if a
+ * filesystem wants to return write errors in close() and the file
+ * has cached dirty data, this is a good place to write back data
+ * and return any errors.  Since many applications ignore close()
+ * errors this is not always useful.
+ *
+ * NOTE: The flush() method may be called more than once for each
+ * open().  This happens if more than one file descriptor refers
+ * to an opened file due to dup(), dup2() or fork() calls.  It is
+ * not possible to determine if a flush is final, so each flush
+ * should be treated equally.  Multiple write-flush sequences are
+ * relatively rare, so this shouldn't be a problem.
+ *
+ * Filesystems shouldn't assume that flush will always be called
+ * after some writes, or that if will be called at all.
+ *
+ * Changed in version 2.2
+ */
+int pfs_flush(const char *path, struct fuse_file_info *fi)
+{
+    int retstat = 0;
+
+    //BBFS code -> convert to MongoDB code
+    /*log_msg("\nbb_flush(path=\"%s\", fi=0x%08x)\n", path, fi);
+    // no need to get fpath on this one, since I work from fi->fh not the path
+    log_fi(fi);*/
+
+    return retstat;
+}
+
+/** Release an open file
+ *
+ * Release is called when there are no more references to an open
+ * file: all file descriptors are closed and all memory mappings
+ * are unmapped.
+ *
+ * For every open() call there will be exactly one release() call
+ * with the same flags and file descriptor.  It is possible to
+ * have a file opened more than once, in which case only the last
+ * release will mean, that no more reads/writes will happen on the
+ * file.  The return value of release is ignored.
+ *
+ * Changed in version 2.2
+ */
+int pfs_release(const char *path, struct fuse_file_info *fi)
+{
+    int retstat = 0;
+
+    //BBFS code
+    /*log_msg("\nbb_release(path=\"%s\", fi=0x%08x)\n",
+            path, fi);
+    log_fi(fi);
+
+    // We need to close the file.  Had we allocated any resources
+    // (buffers etc) we'd need to free them here as well.
+    retstat = close(fi->fh);*/
+
+    return retstat;
+}
+
+/**
+ * Clean up filesystem
+ *
+ * Called on filesystem exit.
+ *
+ * Introduced in version 2.3
+ */
+void pfs_destroy(void *userdata)
+{
+    //BBFS code
+    /*log_msg("\nbb_destroy(userdata=0x%08x)\n", userdata);*/
+    return;
+}
+
+
+/**
+ * Create and open a file
+ *
+ * If the file does not exist, first create it with the specified
+ * mode, and then open it.
+ *
+ * If this method is not implemented or under Linux kernel
+ * versions earlier than 2.6.15, the mknod() and open() methods
+ * will be called instead.
+ *
+ * Introduced in version 2.5
+ */
+int pfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+    int retstat = 0;
+
+    //BBFS code -> convert to MongoDB code
+    /*char fpath[PATH_MAX];
+    int fd;
+
+    log_msg("\nbb_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
+            path, mode, fi);
+    bb_fullpath(fpath, path);
+
+    fd = creat(fpath, mode);
+    if (fd < 0)
+        retstat = bb_error("bb_create creat");
+
+    fi->fh = fd;
+
+    log_fi(fi);*/
+
+    return retstat;
+}
+
 //Start FUSE code again
 static struct fuse_operations pfs_oper = {
         .getattr    = pfs_getattr,
@@ -274,17 +408,42 @@ static struct fuse_operations pfs_oper = {
         .open        = pfs_open,
         .read        = pfs_read,
         .write      = pfs_write,
+
+        // MIGHT NOT NEED START:
         .flush      = pfs_flush,
         .release    = pfs_release,
         .destroy    = pfs_destroy,
+        // END;
+
         .create     = pfs_create,
         .rename     = pfs_rename,
-        .chmod      = pfs_chmod,
-        .chown      = pfs_chown,
 };
+
+/** Rename a file */
+// both path and newpath are fs-relative
+int pfs_rename(const char *path, const char *newpath)
+{
+    int retstat = 0;
+
+    //BBFS code -> convert to MongoDB code
+    /*char fpath[PATH_MAX];
+    char fnewpath[PATH_MAX];
+
+    log_msg("\nbb_rename(fpath=\"%s\", newpath=\"%s\")\n",
+            path, newpath);
+    bb_fullpath(fpath, path);
+    bb_fullpath(fnewpath, newpath);
+
+    retstat = rename(fpath, fnewpath);
+    if (retstat < 0)
+        retstat = bb_error("bb_rename rename");*/
+
+    return retstat;
+}
 
 int main(int argc, char *argv[]) {
     mongoc_init();
+    char *str;
 
     client = mongoc_client_new("mongodb://localhost:27017/");
     collection = mongoc_client_get_collection(client, "test", "test");
