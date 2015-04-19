@@ -203,7 +203,7 @@ def get_next_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_node_m
     while v_node_map[distinct_v_node_id]['node_id'] == starting_node['node_id']:
         distinct_v_node_id_index += 1
 
-        if distinct_v_node_id == len(sorted_v_node_ids):
+        if distinct_v_node_id_index == len(sorted_v_node_ids):
             distinct_v_node_id_index = 0
 
         distinct_v_node_id = sorted_v_node_ids[distinct_v_node_id_index]
@@ -225,7 +225,7 @@ def get_previous_distinct_v_node_id(v_node_hash_ring_id, sorted_v_node_ids, v_no
     while v_node_map[distinct_v_node_id]['node_id'] == starting_node['node_id']:
         distinct_v_node_id_index -= 1
 
-        if distinct_v_node_id == -1:
+        if distinct_v_node_id_index == -1:
             distinct_v_node_id_index = len(sorted_v_node_ids) - 1
 
         distinct_v_node_id = sorted_v_node_ids[distinct_v_node_id_index]
