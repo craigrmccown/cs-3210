@@ -10,9 +10,7 @@
 #include <unistd.h>
 #if defined(__APPLE__)
 #  define COMMON_DIGEST_FOR_OPENSSL
-
 #  include <CommonCrypto/CommonDigest.h>
-
 #  define SHA1 CC_SHA1
 #else
 #  include <openssl/md5.h>
@@ -292,7 +290,7 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
         md5_check = strtok(NULL, delim);
         if(strcmp(md5_create,md5_check) == 0)
         {
-            log.message("Duplicate hash.")
+            log_message("Duplicate hash.");
             return -ENOENT;
         }
     }

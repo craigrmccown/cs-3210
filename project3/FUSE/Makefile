@@ -1,5 +1,5 @@
-FLAGS := -Wall $(shell pkg-config fuse --cflags)
-LDFLAGS := $(shell pkg-config fuse --libs) -D_FILE_OFFSET_BITS=64
+FLAGS := -Wall $(shell pkg-config fuse --cflags) 
+LDFLAGS := $(shell pkg-config fuse --libs) -D_FILE_OFFSET_BITS=64 -lcrypto -lssl
 
 targets = rpfs
 
