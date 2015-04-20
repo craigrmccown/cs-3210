@@ -11,10 +11,6 @@ echo "registering with master node..."
 SLAVE_NODE_ID=$(python register.py $MASTER_IP_ADDRESS $MASTER_PORT_NUMBER)
 echo "registered slave node id with master node: $SLAVE_NODE_ID!"
 
-# TODO run replication worker
-echo "starting replication worker..."
-echo "replication worker started!"
-
 echo "starting slave node server..."
 python api.py $SLAVE_NODE_ID $SLAVE_PORT_NUMBER >/dev/null 2>/dev/null &
 echo "server started!"

@@ -102,6 +102,18 @@ def check_heartbeats():
             topology_queue.enqueue(jobs.notify_topology_removal, node)
 
 
+def write_files():
+    threading.Timer(.5, write_files).start()
+    jobs.write_files()
+
+
+def read_files():
+    threading.Timer(.5, read_files).start()
+    jobs.read_files()
+
+
 if __name__ == '__main__':
     check_heartbeats()
+    write_files()
+    read_files()
     app.run('127.0.0.1', port_number)
