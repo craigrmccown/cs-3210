@@ -8,6 +8,43 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#  define COMMON_DIGEST_FOR_OPENSSL
+
+#  include <CommonCrypto/CommonDigest.h>
+
+#  define SHA1 CC_SHA1
+#else
+#  include <openssl/md5.h>
+#endif
+
+//MD5 Algo
+char *str2md5(const char *str, int length)
+{
+    int n;
+    MD5_CTX c;
+    unsigned char digest[16];
+    char *out = (char *) malloc(33);
+    MD5_Init(&c);
+    while (length > 0)
+    {
+        if (length > 512)
+        {
+            MD5_Update(&c, str, 512);
+        } else
+        {
+            MD5_Update(&c, str, length);
+        }
+        length -= 512;
+        str += 512;
+    }
+    MD5_Final(digest, &c);
+    for (n = 0; n < 16; ++n)
+    {
+        snprintf(&(out[n * 2]), 16 * 2, "%02x", (unsigned int) digest[n]);
+    }
+    return out;
+}
 
 void log_message(const char* message)
 {
@@ -233,15 +270,35 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     FILE* f;
     char* file_path_base = "/tmp/rpfs/write";
     char* file_path;
-
-    dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
-    fprintf(dirlist, "%s,%i\n", path, 0);
-    fclose(dirlist);
+    char *md5_create;
+    char *line = NULL;
+    char *token = NULL;
+    char *md5_check; 
+    char delim[2] = ",";
+    ssize_t len = 0;
+    ssize_t read;
+    int psize = 0;
 
     file_path = malloc(strlen(file_path_base) + strlen(path));
     strcpy(file_path, file_path_base);
     strcat(file_path, path);
+    md5_create = str2md5(file_path,strlen(file_path)); 
 
+    dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
+    while ((read = getline(&line, &len, dirlist)) != -1) // while we are still getting line data
+    {
+        token = strtok(line, delim); // token = file name
+        psize = atoi(strtok(NULL, delim));
+        md5_check = strtok(NULL, delim);
+        if(strcmp(md5_create,md5_check) == 0)
+        {
+            log.message("Duplicate hash.")
+            return -ENOENT;
+        }
+    }
+
+    fprintf(dirlist, "%s,%i,%s\n", path, 0, md5_create);
+    fclose(dirlist);
     f = fopen(file_path, "w");
     fi->fh = (uint64_t)fileno(f);
 
