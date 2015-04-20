@@ -270,6 +270,8 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     f = fopen(file_path, "w");
     fi->fh = (uint64_t)fileno(f);
 
+    free(file_path);
+
     return 0;
 }
 

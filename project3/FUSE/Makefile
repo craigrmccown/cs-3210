@@ -13,5 +13,6 @@ clean:
 	rm -f *.o
 	rm -f $(targets)
 	fusermount -u mountdir
+	rmdir mountdir
 	rm log.txt
 	touch log.txt
