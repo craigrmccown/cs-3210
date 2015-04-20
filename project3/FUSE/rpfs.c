@@ -22,7 +22,6 @@ void log_message(const char* message)
 static int pfs_getattr(const char *path, struct stat *stbuf)
 {
     log_message("pfs_getattr");
-    log_message(path);
 
     FILE *dirlist_ptr;
     char *line = NULL;
@@ -45,7 +44,6 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
     }
     else
     {
-        log_message("not root attr");
         dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r");       // expecting this file to exist by default
 
         if (dirlist_ptr == NULL)
@@ -59,6 +57,7 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
             psize = atoi(strtok(NULL, delim));
 
             if (strcmp(token, path) == 0)
+    
             {
                 stbuf->st_mode = S_IFREG | 0666;
                 stbuf->st_nlink = 1;
@@ -73,7 +72,6 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
 
     if (!found_file)
     {
-        log_message("file not found");
         res = -ENOENT;
     }
 
@@ -83,7 +81,6 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
 static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
     log_message("pfs_readdir");
-    log_message(path);
     FILE *dirlist_ptr;
     char *line = NULL;
     char *token = NULL;
@@ -98,20 +95,16 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
     if (dirlist_ptr == NULL)
     {
-        log_message("file not found");
         exit(EXIT_FAILURE);
     }
 
     while ((read = getline(&line, &len, dirlist_ptr)) != -1) // while we are still getting line data
     {
         token = strtok(line, delim); // token = file name
-        log_message(token);
-        filler(buf, token + 1, NULL, 0);
+        filler(buf, token + 1, NULL, 0); // hack to remove slash
     }
 
-    log_message("closing file");
     fclose(dirlist_ptr);
-    log_message("closed file");
 
     return 0;
 }
@@ -219,6 +212,7 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
 {
     log_message("pfs_write");
     int res;
+
     (void) path;
     res = pwrite(fi->fh, buf, size, offset);
 
@@ -246,6 +240,28 @@ void pfs_destroy(void *userdata)
     rmdir("/tmp/rpfs/unlink");
     rmdir("/tmp/rpfs");
     return;
+}
+
+int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
+{
+    log_message("pfs_create");
+    FILE* dirlist;
+    FILE* f;
+    char* file_path_base = "/tmp/rpfs/write";
+    char* file_path;
+
+    dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
+    fprintf(dirlist, "%s,%i\n", path, 0);
+    fclose(dirlist);
+
+    file_path = malloc(strlen(file_path_base) + strlen(path));
+    strcpy(file_path, file_path_base);
+    strcat(file_path, path);
+
+    f = fopen(file_path, "w");
+    fi->fh = (uint64_t)fileno(f);
+
+    return 0;
 }
 
 /** Remove a file */
@@ -289,8 +305,6 @@ void *pfs_init(struct fuse_conn_info *conn)
     return;
 }
 
-
-
 /** Release an open file
  *
  * Release is called when there are no more references to an open
@@ -323,9 +337,8 @@ static struct fuse_operations pfs_oper = {
         .read       = pfs_read,
         .write      = pfs_write,
         .unlink     = pfs_unlink,
+        .create     = pfs_create,
         .init       = pfs_init,
-
-        // Only need if directories in tmp will be controlled by FUSE
         .destroy    = pfs_destroy,
         .release    = pfs_release,
 };

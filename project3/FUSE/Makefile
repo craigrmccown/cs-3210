@@ -12,3 +12,6 @@ rpfs: rpfs.c
 clean:
 	rm -f *.o
 	rm -f $(targets)
+	fusermount -u mountdir
+	rm log.txt
+	touch log.txt
