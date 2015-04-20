@@ -44,6 +44,8 @@ def write_files():
     topology = list(db.topology.find())
 
     if len(topology) == 0:
+        update_dirlist()
+
         for filename in to_be_written:
             os.remove(os.path.join(write_path_base, filename))
 
