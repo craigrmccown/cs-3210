@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-from rq import Queue, Connection, Worker
+#!/usr/bin/env bash
 
-import jobs
-
-with Connection():
-    qs = Queue('replication')
-    w = Worker(qs)
-    w.work()
+python replication_worker.py >/dev/null 2>/dev/null &

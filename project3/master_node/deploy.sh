@@ -12,11 +12,10 @@ mkdir -p /tmp/rpfs/dir
 touch /tmp/rpfs/dirlist.txt
 echo "directories created!"
 
-#TODO run in daemon mode
-echo "starting master node server..."
-python api.py $PORT_NUMBER
-echo "server started!"
+echo "starting topology worker..."
+./topology_worker.sh
+echo "topology worker started!"
 
-#TODO run topology worker
-echo "starting replication worker..."
-echo "replication worker started!"
+echo "starting master node server..."
+python api.py $PORT_NUMBER >/dev/null 2>/dev/null &
+echo "server started!"

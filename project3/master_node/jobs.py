@@ -4,7 +4,6 @@ import requests
 import hashlib
 import array
 import mimetypes
-import sys
 
 
 mongo = MongoClient('localhost', 27017)
@@ -67,7 +66,7 @@ def write_files():
             db.files.find_one_and_update({'filename': filename}, {'$set': {'size': os.path.getsize(write_path)}})
         else:
             db.files.insert({'filename': filename, 'size': os.path.getsize(write_path)})
-            
+
         update_dirlist()
         os.remove(write_path)
 
