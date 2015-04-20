@@ -2,6 +2,7 @@ from flask import Flask, Response, jsonify
 from pymongo import MongoClient
 from redis import Redis
 from rq import Queue
+import socket
 import requests
 import threading
 import sys
@@ -14,6 +15,7 @@ port_number = int(sys.argv[1])
 app = Flask('rpfs_master_api')
 mongo = MongoClient('127.0.0.1', 27017)
 db = mongo.rpfs_master_db
+lan_address = socket.gethostbyname(socket.getfqdn())
 topology_queue = Queue('topology', connection=Redis(host='localhost', port=6379))
 
 

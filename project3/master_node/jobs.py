@@ -71,7 +71,7 @@ def write_files():
         if existing:
             db.files.update({'filename': filename}, {'$set': {'size': os.path.getsize(write_path)}})
         else:
-            db.files.insert({'filename': filename, 'size': os.path.getsize(write_path)})
+            db.files.insert({'filename': filename, 'size': os.path.getsize(write_path), 'hash_ring_id': hash_ring_id})
 
         update_dirlist()
         os.remove(write_path)
@@ -118,7 +118,7 @@ def update_dirlist():
 
     with open(dirlist_path, 'w') as f:
         for fdoc in fdocs:
-            f.write(''.join([fdoc.get('filename'), ',', str(fdoc.get('size')), '\n']))
+            f.write(''.join(['/', fdoc.get('filename'), ',', str(fdoc.get('size')), ',', str(fdoc.get('hash_ring_id')), '\n']))
 
 
 def build_topology_maps(topology):
