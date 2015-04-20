@@ -3,8 +3,9 @@ from pymongo import MongoClient
 from gridfs import GridFS
 from redis import Redis
 from rq import Queue
-import jobs
+import socket
 import sys
+import jobs
 
 
 node_id = int(sys.argv[1])
@@ -13,6 +14,7 @@ app = Flask('rpfs_slave_api_' + str(node_id))
 mongo = MongoClient('localhost', 27017)
 db = mongo['rpfs_slave_db_' + str(node_id)]
 fs = GridFS(db)
+lan_address = socket.gethostbyname(socket.getfqdn())
 replication_queue = Queue('replication', connection=Redis(host='localhost', port=6379))
 
 
@@ -116,4 +118,4 @@ def remove_file(file_hash_ring_id):
 
 
 if __name__ == '__main__':
-    app.run('127.0.0.1', port_number)
+    app.run(lan_address, port_number)
