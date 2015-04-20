@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-void log_message(char* message)
+void log_message(const char* message)
 {
     FILE* f;
 
@@ -30,36 +30,60 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
 
     int psize = 0; // picture size
     int res = 0;
+    int found_file = 0;
     ssize_t len = 0;
     ssize_t read;
 
     memset(stbuf, 0, sizeof(struct stat));
-    dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r");       // expecting this file to exist by default
-
-    if (dirlist_ptr == NULL)
+    log_message(path);
+    
+    if (strcmp(path, "/") == 0)
     {
-        exit(EXIT_FAILURE);
+        log_message("root attr");
+        stbuf->st_mode = S_IFDIR | 0755;
+        log_message("st_mode");
+        stbuf->st_nlink = 2;
+        log_message("st_nlink");
+        found_file = 1;
+        log_message("found_file");
     }
-
-    while ((read = getline(&line, &len, dirlist_ptr)) != -1) // while we are still getting line data
+    else
     {
+        log_message("not root attr");
+        dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r");       // expecting this file to exist by default
+
+        if (dirlist_ptr == NULL)
+        {
+            exit(EXIT_FAILURE);
+        }
+
         token = strtok(line, delim);                         //token = file name
-        if (strcmp(path, "/") == 0)
+
+        while ((read = getline(&line, &len, dirlist_ptr)) != -1)
         {
-            stbuf->st_mode = S_IFDIR | 0755;
-            stbuf->st_nlink = 2;
-        } else if (strcmp(path, token) == 0)
-        {
-            token = strtok(NULL, delim);                    // grab token = file size, as a char
-            psize = atoi(token);
-            stbuf->st_mode = S_IFREG | 0666;
-            stbuf->st_nlink = 1;
-            stbuf->st_size = psize;
-        } else
-            res = -ENOENT;
+            log_message(path);
+            log_message(token);
+            if (strcmp(token, path) == 0)
+            {
+                psize = atoi(strtok(NULL, delim));
+                stbuf->st_mode = S_IFREG | 0666;
+                stbuf->st_nlink = 1;
+                stbuf->st_size = psize;
+                found_file = 1;
+                break;
+            }
+        }
+
+        fclose(dirlist_ptr);
     }
 
-    fclose(dirlist_ptr);
+    if (!found_file)
+    {
+        log_message("file not found");
+        res = -ENOENT;
+    }
+
+    log_message("end");
     return res;
 }
 
@@ -92,7 +116,6 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
     if (strcmp(path, "/") != 0) // just check if path is / (error out) else we don't care what it is
         return -ENOENT;
 
-    fclose(dirlist_ptr);
     return 0;
 }
 
