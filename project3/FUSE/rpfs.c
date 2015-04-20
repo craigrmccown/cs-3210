@@ -199,11 +199,13 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
  */
 void pfs_destroy(void *userdata)
 {
+    remove("/tmp/rpfs/dir/dirlist.txt");
     rmdir("/tmp/rpfs/pyreadpath");
     rmdir("/tmp/rpfs/read");
     rmdir("/tmp/rpfs/write");
     rmdir("/tmp/rpfs/dir");
-    rmdir("/tmp/rpfs/remove");
+    rmdir("/tmp/rpfs/unlink");
+    rmdir("/tmp/rpfs");
     return;
 }
 
@@ -298,7 +300,7 @@ int main(int argc, char *argv[])
     mkdir("/tmp/rpfs/read", 0777); //files to read placed here by python script
     mkdir("/tmp/rpfs/write", 0777); //files to write placed here by FUSE
     mkdir("/tmp/rpfs/dir", 0777); //files with list of file names and size placed here by python script
-    mkdir("/tmp/rpfs/remove", 0777); //files to remove placed here by FUSE, title is file to remove
+    mkdir("/tmp/rpfs/unlink", 0777); //files to remove placed here by FUSE, title is file to remove
     
 
     if ((argc < 2) || (argv[argc - 1][0] == '-')) // abort if there are less than 2 provided argument or if the path starts with a hyphen (breaks)
