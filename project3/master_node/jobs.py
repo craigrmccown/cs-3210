@@ -55,6 +55,10 @@ def write_files():
 
     for filename in to_be_written:
         write_path = os.path.join(write_path_base, filename)
+
+        if os.path.getsize(write_path) == 0:
+            continue
+
         hash_ring_id = generate_hash_ring_id(filename)
         next_v_node_index = get_next_v_node_id_index(hash_ring_id, sorted_v_node_ids)
         next_node = v_node_map[sorted_v_node_ids[next_v_node_index]]
