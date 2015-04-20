@@ -128,21 +128,10 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
     int not_done = 1;
     int count = 0;
     int fd_read;
-    int fd_write;
 
     strcpy(py_name, py_path);       // building full path to temporary file
     strcpy(read_name, read_path);   // building full path to actual file
     dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
-
-    if (strcmp(path, "/") != 0)
-    {
-        return -ENOENT;
-    }
-
-    if (dirlist_ptr == NULL)
-    {
-        exit(EXIT_FAILURE);
-    }
 
     while (((read = getline(&line, &len, dirlist_ptr)) != -1) && not_done) // while we are still getting line data
     {
@@ -156,16 +145,6 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
             not_done = 0;                       // we done
         }
     }
-
-    if (not_done)   // file doesn't exist, so create it
-    {
-        strcpy(write_name, write_path);
-        strcat(write_name, path); // build path for write
-        fd_write = open(write_name, O_RDWR | O_CREAT | O_TRUNC, mode);
-        fi->fh = fd_write;
-    }
-    else          // file exists or we are updating
-    {
         //read file from tmp/rpfs/read
         not_done = 1;
         while (not_done && count < 50) // keep looping and checking for existence of file
@@ -175,20 +154,16 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
             if (fd_read != -1)
             {
                 not_done = 0;
+                fi->fh = fd_read;
             }
             count++;
         }
-
-        if (not_done)       // got the file for read
-        {
-            fi->fh = fd_read;
-        }
-        else              // something went wrong
+    
+        if(not_done)
         {
             fclose(dirlist_ptr);
             return -ENOENT;
         }
-    }
 
     fclose(dirlist_ptr);
     return 0;
