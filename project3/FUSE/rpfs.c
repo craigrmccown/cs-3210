@@ -22,6 +22,7 @@ void log_message(const char* message)
 static int pfs_getattr(const char *path, struct stat *stbuf)
 {
     log_message("pfs_getattr");
+    log_message(path);
 
     FILE *dirlist_ptr;
     char *line = NULL;
@@ -35,17 +36,12 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
     ssize_t read;
 
     memset(stbuf, 0, sizeof(struct stat));
-    log_message(path);
     
     if (strcmp(path, "/") == 0)
     {
-        log_message("root attr");
         stbuf->st_mode = S_IFDIR | 0755;
-        log_message("st_mode");
         stbuf->st_nlink = 2;
-        log_message("st_nlink");
         found_file = 1;
-        log_message("found_file");
     }
     else
     {
@@ -57,15 +53,13 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
             exit(EXIT_FAILURE);
         }
 
-        token = strtok(line, delim);                         //token = file name
-
         while ((read = getline(&line, &len, dirlist_ptr)) != -1)
         {
-            log_message(path);
-            log_message(token);
+            token = strtok(line, delim);
+            psize = atoi(strtok(NULL, delim));
+
             if (strcmp(token, path) == 0)
             {
-                psize = atoi(strtok(NULL, delim));
                 stbuf->st_mode = S_IFREG | 0666;
                 stbuf->st_nlink = 1;
                 stbuf->st_size = psize;
@@ -83,13 +77,13 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
         res = -ENOENT;
     }
 
-    log_message("end");
     return res;
 }
 
 static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
     log_message("pfs_readdir");
+    log_message(path);
     FILE *dirlist_ptr;
     char *line = NULL;
     char *token = NULL;
@@ -103,18 +97,21 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
     dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
 
     if (dirlist_ptr == NULL)
+    {
+        log_message("file not found");
         exit(EXIT_FAILURE);
+    }
 
     while ((read = getline(&line, &len, dirlist_ptr)) != -1) // while we are still getting line data
     {
         token = strtok(line, delim); // token = file name
-        filler(buf, token, NULL, 0);
+        log_message(token);
+        filler(buf, token + 1, NULL, 0);
     }
 
+    log_message("closing file");
     fclose(dirlist_ptr);
-
-    if (strcmp(path, "/") != 0) // just check if path is / (error out) else we don't care what it is
-        return -ENOENT;
+    log_message("closed file");
 
     return 0;
 }
@@ -143,7 +140,7 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
 
     strcpy(py_name, py_path);       // building full path to temporary file
     strcpy(read_name, read_path);   // building full path to actual file
-    dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist", "r"); // expecting this file to exist by default
+    dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
 
     if (strcmp(path, "/") != 0)
         return -ENOENT;
