@@ -1,325 +1,253 @@
-#include <bson.h>
-#include <mongoc.h>
 #include <fuse.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <curl/curl.h>
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-//Mongo relevant structs
-mongoc_client_t *client;
-mongoc_collection_t *collection;
-mongoc_cursor_t *cursor;
-bson_t *query;
+#if defined(__APPLE__)
+#  define COMMON_DIGEST_FOR_OPENSSL
 
+#  include <CommonCrypto/CommonDigest.h>
 
-//Support fields
-char *client_str;
-char *get_url;
-char *master = "rpfs_master_db";
+#  define SHA1 CC_SHA1
+#else
+#  include <openssl/md5.h>
+#endif
 
-//CURL relevant structs
-CURL *curl_handle;
-static const char *headerfilename = "head.out";
-FILE *headerfile;
-static const char *bodyfilename = "body.out";
-FILE *bodyfile;
+//MD5 Algo
+char *str2md5(const char *str, int length)
+{
+    int n;
+    MD5_CTX c;
+    unsigned char digest[16];
+    char *out = (char *) malloc(33);
+    MD5_Init(&c);
+    while (length > 0)
+    {
+        if (length > 512)
+        {
+            MD5_Update(&c, str, 512);
+        } else
+        {
+            MD5_Update(&c, str, length);
+        }
+        length -= 512;
+        str += 512;
+    }
+    MD5_Final(digest, &c);
+    for (n = 0; n < 16; ++n)
+    {
+        snprintf(&(out[n * 2]), 16 * 2, "%02x", (unsigned int) digest[n]);
+    }
+    return out;
+}
 
 //Start FUSE code
-static int pfs_getattr(const char *path, struct stat *stbuf) {
-    char *str;
-    const bson_t *doc;
+static int pfs_getattr(const char *path, struct stat *stbuf)
+{
+    FILE *dirlist_ptr;
+    char *line = NULL;
+    char *token = NULL;
+    char delim[2] = ",";
 
-    //MONGODB CLIENT CODE SETUP START
-    mongoc_init();
-    client = mongoc_client_new(client_str);
-    collection = mongoc_client_get_collection(client, "test", "test");
-    query = bson_new();
-    BSON_APPEND_UTF8(query, "dirents", path);
-    cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0, query, NULL, NULL);
-    //MONGODB CLIENT CODE SETUP END
-
-
-    //CURL GET CODE START
-    curl_global_init(CURL_GLOBAL_ALL);
-    /* init the curl session */
-    curl_handle = curl_easy_init();
-    /* set URL to get */
-    curl_easy_setopt(curl_handle, CURLOPT_URL, get_url);
-    /* no progress meter please */
-    curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
-    /* send all data to this function  */
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_data);
-
-    /* open the header file */
-    headerfile = fopen(headerfilename, "wb");
-    if (!headerfile) {
-        curl_easy_cleanup(curl_handle);
-        return -1;
-    }
-
-    /* open the body file */
-    bodyfile = fopen(bodyfilename, "wb");
-    if (!bodyfile) {
-        curl_easy_cleanup(curl_handle);
-        fclose(headerfile);
-        return -1;
-    }
-
-    /* we want the headers be written to this file handle */
-    curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, headerfile);
-    /* we want the body be written to this file handle instead of stdout */
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bodyfile);
-    /* get it! */
-    curl_easy_perform(curl_handle);
-    //CURL GET CODE END
-
-    //TODO: Get size of picture
-    int pic_size = 1000;
-
+    int psize = 0; // picture size
     int res = 0;
-    memset(stbuf, 0, sizeof(struct stat));
+    size_t len = 0;
+    ssize_t read;
 
-    while (mongoc_cursor_next(cursor, &doc)) {
-        str = bson_as_json(doc, NULL);
-        if (strcmp(path, "/") == 0) {
+    memset(stbuf, 0, sizeof(struct stat));
+    dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r");       // expecting this file to exist by default
+
+    if (dirlist_ptr == NULL)
+        exit(EXIT_FAILURE);
+
+    while ((read = getline(&line, &len, dirlist_ptr)) != -1) // while we are still getting line data
+    {
+        token = strtok(line, delim);                         //token = file name
+        if (strcmp(path, "/") == 0)
+        {
             stbuf->st_mode = S_IFDIR | 0755;
             stbuf->st_nlink = 2;
-        } else if (strcmp(path, str) == 0) {
+        } else if (strcmp(path, token) == 0)
+        {
+            token = strtok(NULL, delim);                    // grab token = file size, as a char
+            psize = atoi(token);
             stbuf->st_mode = S_IFREG | 0666;
             stbuf->st_nlink = 1;
-            //TODO: store size of picture:  stbuf->st_size = strlen(str);
+            stbuf->st_size = psize;
         } else
             res = -ENOENT;
-        bson_free(str);
     }
-
-    /* close the header file */
-    fclose(headerfile);
-    /* close the body file */
-    fclose(bodyfile);
-    /* clean up CURL object */
-    curl_easy_cleanup(curl_handle);
-
-    /* clean up Mongo objects*/
-    bson_destroy(query);
-    mongoc_cursor_destroy(cursor);
-    mongoc_collection_destroy(collection);
-    mongoc_client_destroy(client);
-
     return res;
 }
 
-static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
-    char *str;
-    const bson_t *doc;
+static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
+{
+    FILE *dirlist_ptr;
+    char *line = NULL;
+    char *token = NULL;
+    char delim[2] = ",";
+    ssize_t read;
+    size_t len = 0;
 
-    //MONGODB CLIENT CODE SETUP START
-    mongoc_init();
-    client = mongoc_client_new(client_str);
-    collection = mongoc_client_get_collection(client, "test", "test");
-    query = bson_new(); // Leave query empty to get all results
-    cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0, query, NULL, NULL);
-    //MONGODB CLIENT CODE SETUP END
+    filler(buf, ".", NULL, 0); // filler function formats our provided strings for an ls command
+    filler(buf, "..", NULL, 0);
+
+    dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
+
+    if (dirlist_ptr == NULL)
+        exit(EXIT_FAILURE);
+
+    while ((read = getline(&line, &len, dirlist_ptr)) != -1) // while we are still getting line data
+    {
+        token = strtok(line, delim); // token = file name
+        filler(buf, token, NULL, 0);
+    }
+
+    if (strcmp(path, "/") != 0) // just check if path is / (error out) else we don't care what it is
+        return -ENOENT;
+
+    return 0;
+}
+
+static int pfs_open(const char *path, struct fuse_file_info *fi)
+{
+    FILE *dirlist_ptr;
+    FILE *read_ptr;
+    mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    ssize_t read;
+    char *line = NULL;
+    char *name_token = NULL;
+    char py_name[100];      // string for python to query db with
+    char read_name[100];    // string for FUSE to grab file name for read directory
+    char write_name[100];   // string for FUSE to grab file name for write directory
+    char *py_path = "/tmp/rpfs/pyreadpath/";
+    char *read_path = "/tmp/rpfs/read/";
+    char *write_path = "/tmp/rpfs/write/";
+    char line_delim[2] = ",";
+    size_t len = 0;
+    int not_done = 1;
+    int count = 0;
+    int fd_read;
+    int fd_write;
+
+    strcpy(py_name, py_path);       // building full path to temporary file
+    strcpy(read_name, read_path);   // building full path to actual file
+    dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist", "r"); // expecting this file to exist by default
 
     if (strcmp(path, "/") != 0)
         return -ENOENT;
 
-    filler(buf, ".", NULL, 0);
-    filler(buf, "..", NULL, 0);
+    if (dirlist_ptr == NULL)
+        exit(EXIT_FAILURE);
 
-    while (mongoc_cursor_next(cursor, &doc)) {
-        str = bson_as_json(doc, NULL);
-        filler(buf, str, NULL, 0); // filler(buffer, string_to_write, statbuffer, offset)
-        bson_free(str);
+    while (((read = getline(&line, &len, dirlist_ptr)) != -1) && not_done) // while we are still getting line data
+    {
+        name_token = strtok(line, line_delim);  // name_token = file name
+        if (strcmp(path, name_token) == 0)
+        {
+            strcat(py_name, name_token);
+            strcat(read_name, name_token);      // finish building read path here since we have file name
+            read_ptr = fopen(py_name, "w");     // write empty file with file name we need from db to /tmp/rpfs/pyreadpath
+            fclose(read_ptr);                   // just needed to create the file
+            not_done = 0;                       // we done
+        }
     }
 
-    /* clean up Mongo objects*/
-    bson_destroy(query);
-    mongoc_cursor_destroy(cursor);
-    mongoc_collection_destroy(collection);
-    mongoc_client_destroy(client);
+    if (not_done)   // file doesn't exist, so create it
+    {
+        strcpy(write_name, write_path);
+        strcat(write_name, path); // build path for write
+        fd_write = open(write_name, O_RDWR | O_CREAT | O_TRUNC, mode);
+        fi->fh = fd_write;
+    } else          // file exists or we are updating
+    {
+        //read file from tmp/rpfs/read
+        not_done = 1;
+        while (not_done && count < 50) // keep looping and checking for existence of file
+        {
+            sleep(1);
+            fd_read = open(read_name, fi->flags);
+            if (fd_read != -1)
+            {
+                not_done = 0;
+            }
+            count++;
+        }
 
+        if (not_done)       // got the file for read
+        {
+            fi->fh = fd_read;
+        } else              // something went wrong
+        {
+            return -ENOENT;
+        }
+    }
+
+    fclose(dirlist_ptr);
     return 0;
 }
 
-static int pfs_open(const char *path, struct fuse_file_info *fi) {
-    if ((fi->flags & 3) != O_RDONLY)
-        return -EACCES;
+static int pfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+{
+    int res;
+    (void) path;
+    res = pread(fi->fh, buf, size, offset);
+    if (res == -1)
+        res = -ENOENT;
 
-    return 0;
-}
-
-static int pfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    size_t len;
-    size_t get_len;
-    (void) fi;
-    char *str;
-    char *line;
-    ssize_t read;
-    const bson_t *doc;
-
-    //MONGODB CLIENT CODE SETUP START
-    mongoc_init();
-    client = mongoc_client_new(client_str);
-    collection = mongoc_client_get_collection(client, "test", "test");
-    query = bson_new();
-    BSON_APPEND_UTF8(query, "dirents", path);
-    cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0, query, NULL, NULL);
-    //MONGODB CLIENT CODE SETUP END
-
-    while (mongoc_cursor_next(cursor, &doc)) {
-        str = bson_as_json(doc, NULL);
-
-        //TODO:
-        //Do something with string to get information for HTTP GET
-
-        bson_free(str);
-    }
-
-    //CURL GET CODE START
-    curl_global_init(CURL_GLOBAL_ALL);
-    /* init the curl session */
-    curl_handle = curl_easy_init();
-    /* set URL to get */
-    curl_easy_setopt(curl_handle, CURLOPT_URL, get_url);
-    /* no progress meter please */
-    curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
-    /* send all data to this function  */
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_data);
-    /* open the header file */
-    headerfile = fopen(headerfilename, "wb");
-    if (!headerfile) {
-        curl_easy_cleanup(curl_handle);
-        return -1;
-    }
-    /* open the body file */
-    bodyfile = fopen(bodyfilename, "wb");
-    if (!bodyfile) {
-        curl_easy_cleanup(curl_handle);
-        fclose(headerfile);
-        return -1;
-    }
-    /* we want the headers be written to this file handle */
-    curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, headerfile);
-    /* we want the body be written to this file handle instead of stdout */
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, bodyfile);
-    /* get it! */
-    curl_easy_perform(curl_handle);
-    //CURL GET CODE END
-
-    //TODO: len = len(image_data)
-    while ((read = getline(&line, &get_len, )) != -1) {
-        printf("Retrieved line of length %zu :\n", read);
-        printf("%s", line);
-        if (offset < len) {
-            if (offset + size > len)
-                size = len - offset;
-            memcpy(buf, line + offset, strlen(line));
-        } else
-            size = 0;
-    }
-
-
-    /* close the header file */
-    fclose(headerfile);
-    /* close the body file */
-    fclose(bodyfile);
-    /* clean up CURL object */
-    curl_easy_cleanup(curl_handle);
-
-    /* clean up Mongo objects*/
-    bson_destroy(query);
-    mongoc_cursor_destroy(cursor);
-    mongoc_collection_destroy(collection);
-    mongoc_client_destroy(client);
-
-    if (line)
-        free(line);
-
-    return size;
-}
-
-//CURL put method
-static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream) {
-    int written = fwrite(ptr, size, nmemb, (FILE *) stream);
-    return written;
-}
-
-//CURL get method
-static size_t read_callback(void *ptr, size_t size, size_t nmemb,
-                            void *stream) {
-    size_t retcode;
-    curl_off_t nread;
-
-    /* in real-world cases, this would probably get this data differently
-       as this fread() stuff is exactly what the library already would do
-       by default internally */
-    retcode = fread(ptr, size, nmemb, stream);
-
-    nread = (curl_off_t) retcode;
-
-    fprintf(stderr, "*** We read %" CURL_FORMAT_CURL_OFF_T
-            " bytes from file\n", nread);
-
-    return retcode;
+    return res;
 }
 
 int pfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    int retstat = 0;
-    //BBFS code -> convert to MongoDB code
-/*
-    log_msg("\nbb_write(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
-            path, buf, size, offset, fi);
-    // no need to get fpath on this one, since I work from fi->fh not the path
-    log_fi(fi);
+    int res;
+    (void) path;
+    res = pwrite(fi->fh, buf, size, offset);
 
-    retstat = pwrite(fi->fh, buf, size, offset);
-    if (retstat < 0)
-        retstat = bb_error("bb_write pwrite");*/
+    if (res == -1)
+        res = -ENOENT;
 
-    return retstat;
+    return res;
 }
 
-/** Possibly flush cached data
+/**
+ * Clean up filesystem
  *
- * BIG NOTE: This is not equivalent to fsync().  It's not a
- * request to sync dirty data.
+ * Called on filesystem exit.
  *
- * Flush is called on each close() of a file descriptor.  So if a
- * filesystem wants to return write errors in close() and the file
- * has cached dirty data, this is a good place to write back data
- * and return any errors.  Since many applications ignore close()
- * errors this is not always useful.
- *
- * NOTE: The flush() method may be called more than once for each
- * open().  This happens if more than one file descriptor refers
- * to an opened file due to dup(), dup2() or fork() calls.  It is
- * not possible to determine if a flush is final, so each flush
- * should be treated equally.  Multiple write-flush sequences are
- * relatively rare, so this shouldn't be a problem.
- *
- * Filesystems shouldn't assume that flush will always be called
- * after some writes, or that if will be called at all.
- *
- * Changed in version 2.2
+ * Introduced in version 2.3
  */
-int pfs_flush(const char *path, struct fuse_file_info *fi)
+void pfs_destroy(void *userdata)
+{
+    rmdir("/tmp/rpfs/pyreadpath");
+    rmdir("tmp/rpfs/read");
+    rmdir("tmp/rpfs/write");
+    rmdir("tmp/rpfs/dir");
+    rmdir("tmp/rpfs/remove");
+    return;
+}
+
+/** Remove a file */
+int pfs_unlink(const char *path)
 {
     int retstat = 0;
+    char *remove_path = "/tmp/rpfs/unlink/";
+    char remove[100];
+    FILE *remove_ptr;
 
-    //BBFS code -> convert to MongoDB code
-    /*log_msg("\nbb_flush(path=\"%s\", fi=0x%08x)\n", path, fi);
-    // no need to get fpath on this one, since I work from fi->fh not the path
-    log_fi(fi);*/
+    strcpy(remove, remove_path);
+    strcat(remove, path);
+
+    remove_ptr = fopen(remove, "w");
+    fclose(remove_ptr); // just need to create the file
 
     return retstat;
 }
+
 
 /** Release an open file
  *
@@ -339,64 +267,7 @@ int pfs_release(const char *path, struct fuse_file_info *fi)
 {
     int retstat = 0;
 
-    //BBFS code
-    /*log_msg("\nbb_release(path=\"%s\", fi=0x%08x)\n",
-            path, fi);
-    log_fi(fi);
-
-    // We need to close the file.  Had we allocated any resources
-    // (buffers etc) we'd need to free them here as well.
-    retstat = close(fi->fh);*/
-
-    return retstat;
-}
-
-/**
- * Clean up filesystem
- *
- * Called on filesystem exit.
- *
- * Introduced in version 2.3
- */
-void pfs_destroy(void *userdata)
-{
-    //BBFS code
-    /*log_msg("\nbb_destroy(userdata=0x%08x)\n", userdata);*/
-    return;
-}
-
-
-/**
- * Create and open a file
- *
- * If the file does not exist, first create it with the specified
- * mode, and then open it.
- *
- * If this method is not implemented or under Linux kernel
- * versions earlier than 2.6.15, the mknod() and open() methods
- * will be called instead.
- *
- * Introduced in version 2.5
- */
-int pfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-
-    //BBFS code -> convert to MongoDB code
-    /*char fpath[PATH_MAX];
-    int fd;
-
-    log_msg("\nbb_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
-            path, mode, fi);
-    bb_fullpath(fpath, path);
-
-    fd = creat(fpath, mode);
-    if (fd < 0)
-        retstat = bb_error("bb_create creat");
-
-    fi->fh = fd;
-
-    log_fi(fi);*/
+    retstat = close(fi->fh);
 
     return retstat;
 }
@@ -405,62 +276,29 @@ int pfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 static struct fuse_operations pfs_oper = {
         .getattr    = pfs_getattr,
         .readdir    = pfs_readdir,
-        .open        = pfs_open,
-        .read        = pfs_read,
+        .open       = pfs_open,
+        .read       = pfs_read,
         .write      = pfs_write,
+        .unlink     = pfs_unlink,
 
-        // MIGHT NOT NEED START:
-        .flush      = pfs_flush,
-        .release    = pfs_release,
+        // Only need if directories in tmp will be controlled by FUSE
         .destroy    = pfs_destroy,
-        // END;
+        .release    = pfs_release,
 
-        .create     = pfs_create,
-        .rename     = pfs_rename,
 };
 
-/** Rename a file */
-// both path and newpath are fs-relative
-int pfs_rename(const char *path, const char *newpath)
+int main(int argc, char *argv[])
 {
-    int retstat = 0;
 
-    //BBFS code -> convert to MongoDB code
-    /*char fpath[PATH_MAX];
-    char fnewpath[PATH_MAX];
+    //Init tmp directories for DB communication
+    mkdir("/tmp/rpfs/pyreadpath", 0777); //path for requested files placed here by FUSE, title is file to read
+    mkdir("tmp/rpfs/read", 0777); //files to read placed here by python script
+    mkdir("tmp/rpfs/write", 0777); //files to write placed here by FUSE
+    mkdir("tmp/rpfs/dir", 0777); //files with list of file names and size placed here by python script
+    mkdir("tmp/rpfs/remove", 0777); //files to remove placed here by FUSE, title is file to remove
 
-    log_msg("\nbb_rename(fpath=\"%s\", newpath=\"%s\")\n",
-            path, newpath);
-    bb_fullpath(fpath, path);
-    bb_fullpath(fnewpath, newpath);
-
-    retstat = rename(fpath, fnewpath);
-    if (retstat < 0)
-        retstat = bb_error("bb_rename rename");*/
-
-    return retstat;
-}
-
-int main(int argc, char *argv[]) {
-    mongoc_init();
-    char *str;
-
-    client = mongoc_client_new("mongodb://localhost:27017/");
-    collection = mongoc_client_get_collection(client, "test", "test");
-    query = bson_new();
-    cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0,
-                                    query, NULL, NULL);
-
-    while (mongoc_cursor_next(cursor, &doc)) {
-        str = bson_as_json(doc, NULL);
-        printf("%s\n", str);
-        bson_free(str);
-    }
-
-    bson_destroy(query);
-    mongoc_cursor_destroy(cursor);
-    mongoc_collection_destroy(collection);
-    mongoc_client_destroy(client);
+    if ((argc < 2) || (argv[argc - 1][0] == '-')) // abort if there are less than 2 provided argument or if the path starts with a hyphen (breaks)
+        abort();
 
     return fuse_main(argc, argv, &pfs_oper, NULL);
 
