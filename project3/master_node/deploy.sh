@@ -8,6 +8,8 @@ echo "creating tmp directories..."
 mkdir -p /tmp/rpfs/write
 mkdir -p /tmp/rpfs/pyreadpath
 mkdir -p /tmp/rpfs/read
+mkdir -p /tmp/rpfs/dir
+touch /tmp/rpfs/dirlist.txt
 echo "directories created!"
 
 #TODO run in daemon mode

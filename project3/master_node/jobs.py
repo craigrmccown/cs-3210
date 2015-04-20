@@ -35,9 +35,9 @@ def notify_topology_removal(failed_node):
 
 
 def write_files():
-    write_path = '/tmp/rpfs/write'
-    to_be_written = os.listdir(write_path)
-    to_be_written = filter(lambda p: os.path.isfile(os.path.join(write_path, p)), to_be_written)
+    write_path_base = '/tmp/rpfs/write'
+    to_be_written = os.listdir(write_path_base)
+    to_be_written = filter(lambda p: os.path.isfile(os.path.join(write_path_base, p)), to_be_written)
 
     if len(to_be_written) == 0:
         return
@@ -45,27 +45,39 @@ def write_files():
     topology = list(db.topology.find())
 
     if len(topology) == 0:
+        for filename in to_be_written:
+            os.remove(os.path.join(write_path_base, filename))
+
         return
 
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
 
-    for path in to_be_written:
-        hash_ring_id = generate_hash_ring_id(path)
+    for filename in to_be_written:
+        write_path = os.path.join(write_path_base, filename)
+        hash_ring_id = generate_hash_ring_id(filename)
         next_v_node_index = get_next_v_node_id_index(hash_ring_id, sorted_v_node_ids)
         next_node = v_node_map[sorted_v_node_ids[next_v_node_index]]
 
-        with open(os.path.join(write_path, path), 'r') as f:
-            requests.post(build_url_from_node(next_node) + '/files/' + str(hash_ring_id), files={'file': (str(hash_ring_id), f, mimetypes.guess_type(path)[0])})
+        with open(write_path, 'r') as f:
+            requests.post(build_url_from_node(next_node) + '/files/' + str(hash_ring_id), files={'file': (str(hash_ring_id), f, mimetypes.guess_type(filename)[0])})
 
-        os.remove(os.path.join(write_path, path))
+        existing = db.files.find({'filename': filename})
+
+        if existing:
+            db.files.find_one_and_update({'filename': filename}, {'$set': {'size': os.path.getsize(write_path)}})
+        else:
+            db.files.insert({'filename': filename, 'size': os.path.getsize(write_path)})
+            
+        update_dirlist()
+        os.remove(write_path)
 
 
 def read_files():
-    readpath_path = '/tmp/rpfs/pyreadpath'
-    read_path = '/tmp/rpfs/read'
+    readpath_path_base = '/tmp/rpfs/pyreadpath'
+    read_path_base = '/tmp/rpfs/read'
 
-    to_be_read = os.listdir(readpath_path)
-    to_be_read = filter(lambda p: os.path.isfile(os.path.join(readpath_path, p)), to_be_read)
+    to_be_read = os.listdir(readpath_path_base)
+    to_be_read = filter(lambda p: os.path.isfile(os.path.join(readpath_path_base, p)), to_be_read)
 
     if len(to_be_read) == 0:
         return
@@ -73,21 +85,35 @@ def read_files():
     topology = list(db.topology.find())
 
     if len(topology) == 0:
+        for filename in to_be_read:
+            os.remove(os.path.join(readpath_path_base, filename))
+
         return
 
     sorted_v_node_ids, v_node_map = build_topology_maps(topology)
 
-    for path in to_be_read:
-        hash_ring_id = generate_hash_ring_id(path)
+    for filename in to_be_read:
+        readpath_path = os.path.join(readpath_path_base, filename)
+        read_path = os.path.join(read_path_base, filename)
+        hash_ring_id = generate_hash_ring_id(filename)
         next_v_node_index = get_next_v_node_id_index(hash_ring_id, sorted_v_node_ids)
         next_node = v_node_map[sorted_v_node_ids[next_v_node_index]]
 
         response = requests.get(build_url_from_node(next_node) + '/files/' + str(hash_ring_id))
 
-        with open(os.path.join(read_path, path), 'w') as f:
+        with open(read_path, 'w') as f:
             f.write(response.content)
 
-        os.remove(os.path.join(readpath_path, path))
+        os.remove(readpath_path)
+
+
+def update_dirlist():
+    dirlist_path = '/tmp/rpfs/dir/dirlist.txt'
+    fdocs = list(db.files.find())
+
+    with open(dirlist_path, 'w') as f:
+        for fdoc in fdocs:
+            f.write(''.join([fdoc.get('filename'), ',', str(fdoc.get('size')), '\n']))
 
 
 def build_topology_maps(topology):
