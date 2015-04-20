@@ -1,4 +1,4 @@
-from flask import Flask, Response, jsonify
+from flask import Flask, Response, jsonify, request
 from pymongo import MongoClient
 from redis import Redis
 from rq import Queue
@@ -47,7 +47,7 @@ def confirm_registration(slave_node_id, slave_node_port_number):
 
     new_node = {
         'node_id': int(slave_node_id),
-        'ip_address': '127.0.0.1',
+        'ip_address': request.remote_addr,
         'port_number': int(slave_node_port_number),
         'v_nodes': generate_unique_v_nodes(num_v_nodes, current_v_node_ids)
     }
@@ -118,4 +118,4 @@ if __name__ == '__main__':
     check_heartbeats()
     write_files()
     read_files()
-    app.run('127.0.0.1', port_number)
+    app.run(lan_address, port_number)
