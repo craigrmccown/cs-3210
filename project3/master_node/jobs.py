@@ -118,7 +118,7 @@ def update_dirlist():
 
     with open(dirlist_path, 'w') as f:
         for fdoc in fdocs:
-            f.write(''.join([fdoc.get('filename'), ',', str(fdoc.get('size')), '\n']))
+            f.write(''.join(['/', fdoc.get('filename'), ',', str(fdoc.get('size')), '\n']))
 
 
 def build_topology_maps(topology):
