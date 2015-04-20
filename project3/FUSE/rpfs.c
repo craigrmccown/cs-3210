@@ -92,6 +92,7 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
     if (strcmp(path, "/") != 0) // just check if path is / (error out) else we don't care what it is
         return -ENOENT;
 
+    fclose(dirlist_ptr);
     return 0;
 }
 
@@ -166,6 +167,7 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
             fi->fh = fd_read;
         } else              // something went wrong
         {
+	    fclose(dirlist_ptr);
             return -ENOENT;
         }
     }
@@ -216,11 +218,13 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
 void pfs_destroy(void *userdata)
 {
     log_message("pfs_destroy");
+    remove("/tmp/rpfs/dir/dirlist.txt");
     rmdir("/tmp/rpfs/pyreadpath");
     rmdir("/tmp/rpfs/read");
     rmdir("/tmp/rpfs/write");
     rmdir("/tmp/rpfs/dir");
     rmdir("/tmp/rpfs/unlink");
+    rmdir("/tmp/rpfs");
     return;
 }
 
@@ -241,6 +245,30 @@ int pfs_unlink(const char *path)
 
     return retstat;
 }
+
+/**
+ * Initialize filesystem
+ *
+ * The return value will passed in the private_data field of
+ * fuse_context to all file operations and as a parameter to the
+ * destroy() method.
+ *
+ * Introduced in version 2.3
+ * Changed in version 2.6
+ */
+// Undocumented but extraordinarily useful fact:  the fuse_context is
+// set up before this function is called, and
+// fuse_get_context()->private_data returns the user_data passed to
+// fuse_main().  Really seems like either it should be a third
+// parameter coming in here, or else the fact should be documented
+// (and this might as well return void, as it did in older versions of
+// FUSE).
+void *pfs_init(struct fuse_conn_info *conn)
+{
+    printf("ya boi, out here, mounting programs");
+    return;
+}
+
 
 
 /** Release an open file
@@ -273,10 +301,13 @@ static struct fuse_operations pfs_oper = {
         .readdir    = pfs_readdir,
         .open       = pfs_open,
         .read       = pfs_read,
-        //.write      = pfs_write,
-        //.unlink     = pfs_unlink,
-        //.destroy    = pfs_destroy,
-        //.release    = pfs_release
+        .write      = pfs_write,
+        .unlink     = pfs_unlink,
+        .init       = pfs_init,
+
+        // Only need if directories in tmp will be controlled by FUSE
+        .destroy    = pfs_destroy,
+        .release    = pfs_release,
 };
 
 int main(int argc, char *argv[])
