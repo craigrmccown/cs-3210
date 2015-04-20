@@ -9,9 +9,20 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+void log_message(char* message)
+{
+    FILE* f;
+
+    f = fopen("/home/ubuntu/cs-3210/project3/FUSE/log.txt", "a");
+    fprintf(f, "%s\n", message);
+    fclose(f);
+}
+
 //Start FUSE code
 static int pfs_getattr(const char *path, struct stat *stbuf)
 {
+    log_message("pfs_getattr");
+
     FILE *dirlist_ptr;
     char *line = NULL;
     char *token = NULL;
@@ -19,14 +30,16 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
 
     int psize = 0; // picture size
     int res = 0;
-    size_t len = 0;
+    ssize_t len = 0;
     ssize_t read;
 
     memset(stbuf, 0, sizeof(struct stat));
     dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r");       // expecting this file to exist by default
 
     if (dirlist_ptr == NULL)
+    {
         exit(EXIT_FAILURE);
+    }
 
     while ((read = getline(&line, &len, dirlist_ptr)) != -1) // while we are still getting line data
     {
@@ -45,11 +58,14 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
         } else
             res = -ENOENT;
     }
+
+    fclose(dirlist_ptr);
     return res;
 }
 
 static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
+    log_message("pfs_readdir");
     FILE *dirlist_ptr;
     char *line = NULL;
     char *token = NULL;
@@ -71,6 +87,8 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
         filler(buf, token, NULL, 0);
     }
 
+    fclose(dirlist_ptr);
+
     if (strcmp(path, "/") != 0) // just check if path is / (error out) else we don't care what it is
         return -ENOENT;
 
@@ -79,6 +97,7 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
 static int pfs_open(const char *path, struct fuse_file_info *fi)
 {
+    log_message("pfs_open");
     FILE *dirlist_ptr;
     FILE *read_ptr;
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
@@ -157,6 +176,7 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
 
 static int pfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    log_message("pfs_read");
     char *delete_read_path = "/tmp/rpfs/read/";
     char delete_read[100];
     int res;
@@ -175,6 +195,7 @@ static int pfs_read(const char *path, char *buf, size_t size, off_t offset, stru
 
 int pfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    log_message("pfs_write");
     int res;
     (void) path;
     res = pwrite(fi->fh, buf, size, offset);
@@ -194,17 +215,19 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
  */
 void pfs_destroy(void *userdata)
 {
+    log_message("pfs_destroy");
     rmdir("/tmp/rpfs/pyreadpath");
-    rmdir("tmp/rpfs/read");
-    rmdir("tmp/rpfs/write");
-    rmdir("tmp/rpfs/dir");
-    rmdir("tmp/rpfs/remove");
+    rmdir("/tmp/rpfs/read");
+    rmdir("/tmp/rpfs/write");
+    rmdir("/tmp/rpfs/dir");
+    rmdir("/tmp/rpfs/unlink");
     return;
 }
 
 /** Remove a file */
 int pfs_unlink(const char *path)
 {
+    log_message("pfs_unlink");
     int retstat = 0;
     char *remove_path = "/tmp/rpfs/unlink/";
     char remove[100];
@@ -236,6 +259,7 @@ int pfs_unlink(const char *path)
  */
 int pfs_release(const char *path, struct fuse_file_info *fi)
 {
+    log_message("pfs_release");
     int retstat = 0;
 
     retstat = close(fi->fh);
@@ -249,28 +273,31 @@ static struct fuse_operations pfs_oper = {
         .readdir    = pfs_readdir,
         .open       = pfs_open,
         .read       = pfs_read,
-        .write      = pfs_write,
-        .unlink     = pfs_unlink,
-
-        // Only need if directories in tmp will be controlled by FUSE
-        .destroy    = pfs_destroy,
-        .release    = pfs_release,
-
+        //.write      = pfs_write,
+        //.unlink     = pfs_unlink,
+        //.destroy    = pfs_destroy,
+        //.release    = pfs_release
 };
 
 int main(int argc, char *argv[])
 {
+    log_message("main");
+    FILE* dirlist;
 
     //Init tmp directories for DB communication
+    mkdir("/tmp/rpfs", 0777);
     mkdir("/tmp/rpfs/pyreadpath", 0777); //path for requested files placed here by FUSE, title is file to read
-    mkdir("tmp/rpfs/read", 0777); //files to read placed here by python script
-    mkdir("tmp/rpfs/write", 0777); //files to write placed here by FUSE
-    mkdir("tmp/rpfs/dir", 0777); //files with list of file names and size placed here by python script
-    mkdir("tmp/rpfs/remove", 0777); //files to remove placed here by FUSE, title is file to remove
+    mkdir("/tmp/rpfs/read", 0777); //files to read placed here by python script
+    mkdir("/tmp/rpfs/write", 0777); //files to write placed here by FUSE
+    mkdir("/tmp/rpfs/dir", 0777); //files with list of file names and size placed here by python script
+    mkdir("/tmp/rpfs/unlink", 0777); //files to remove placed here by FUSE, title is file to remove
+    dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "w");
+    fclose(dirlist);
 
     if ((argc < 2) || (argv[argc - 1][0] == '-')) // abort if there are less than 2 provided argument or if the path starts with a hyphen (breaks)
+    {
         abort();
+    }
 
     return fuse_main(argc, argv, &pfs_oper, NULL);
-
 }
