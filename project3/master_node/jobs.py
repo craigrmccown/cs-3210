@@ -66,10 +66,10 @@ def write_files():
         with open(write_path, 'r') as f:
             requests.post(build_url_from_node(next_node) + '/files/' + str(hash_ring_id), files={'file': (str(hash_ring_id), f, mimetypes.guess_type(filename)[0])})
 
-        existing = db.files.find({'filename': filename})
+        existing = db.files.find_one({'filename': filename})
 
         if existing:
-            db.files.find_one_and_update({'filename': filename}, {'$set': {'size': os.path.getsize(write_path)}})
+            db.files.update({'filename': filename}, {'$set': {'size': os.path.getsize(write_path)}})
         else:
             db.files.insert({'filename': filename, 'size': os.path.getsize(write_path)})
 
