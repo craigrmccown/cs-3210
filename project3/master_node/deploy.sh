@@ -13,7 +13,7 @@ touch /tmp/rpfs/dirlist.txt
 echo "directories created!"
 
 echo "starting topology worker..."
-./topology_worker.sh
+python topology_worker.py >/dev/null 2>/dev/null &
 echo "topology worker started!"
 
 echo "starting master node server..."

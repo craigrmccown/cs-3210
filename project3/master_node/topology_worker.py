@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from rq import Queue, Connection, Worker
 
 import jobs
