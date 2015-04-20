@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+FILE *file_ptr;
+
 //Start FUSE code
 static int pfs_getattr(const char *path, struct stat *stbuf)
 {
@@ -45,6 +47,7 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
         } else
             res = -ENOENT;
     }
+    fclose(dirlist_ptr);
     return res;
 }
 
@@ -74,6 +77,7 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
     if (strcmp(path, "/") != 0) // just check if path is / (error out) else we don't care what it is
         return -ENOENT;
 
+    fclose(dirlist_ptr);
     return 0;
 }
 
@@ -147,6 +151,7 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
             fi->fh = fd_read;
         } else              // something went wrong
         {
+	    fclose(dirlist_ptr);
             return -ENOENT;
         }
     }
@@ -285,14 +290,16 @@ static struct fuse_operations pfs_oper = {
 
 int main(int argc, char *argv[])
 {
-
+    file_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "w");
+    fclose(file_ptr);
     //Init tmp directories for DB communication
-    mkdir("/tmp/rpfs");
+    mkdir("/tmp/rpfs", 0777);
     mkdir("/tmp/rpfs/pyreadpath", 0777); //path for requested files placed here by FUSE, title is file to read
     mkdir("/tmp/rpfs/read", 0777); //files to read placed here by python script
     mkdir("/tmp/rpfs/write", 0777); //files to write placed here by FUSE
     mkdir("/tmp/rpfs/dir", 0777); //files with list of file names and size placed here by python script
     mkdir("/tmp/rpfs/remove", 0777); //files to remove placed here by FUSE, title is file to remove
+    
 
     if ((argc < 2) || (argv[argc - 1][0] == '-')) // abort if there are less than 2 provided argument or if the path starts with a hyphen (breaks)
         abort();
