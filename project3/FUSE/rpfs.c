@@ -57,7 +57,6 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
             psize = atoi(strtok(NULL, delim));
 
             if (strcmp(token, path) == 0)
-    
             {
                 stbuf->st_mode = S_IFREG | 0666;
                 stbuf->st_nlink = 1;
@@ -136,10 +135,14 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
     dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
 
     if (strcmp(path, "/") != 0)
+    {
         return -ENOENT;
+    }
 
     if (dirlist_ptr == NULL)
+    {
         exit(EXIT_FAILURE);
+    }
 
     while (((read = getline(&line, &len, dirlist_ptr)) != -1) && not_done) // while we are still getting line data
     {
@@ -160,7 +163,8 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
         strcat(write_name, path); // build path for write
         fd_write = open(write_name, O_RDWR | O_CREAT | O_TRUNC, mode);
         fi->fh = fd_write;
-    } else          // file exists or we are updating
+    }
+    else          // file exists or we are updating
     {
         //read file from tmp/rpfs/read
         not_done = 1;
@@ -178,9 +182,10 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
         if (not_done)       // got the file for read
         {
             fi->fh = fd_read;
-        } else              // something went wrong
+        }
+        else              // something went wrong
         {
-	    fclose(dirlist_ptr);
+            fclose(dirlist_ptr);
             return -ENOENT;
         }
     }
@@ -202,7 +207,9 @@ static int pfs_read(const char *path, char *buf, size_t size, off_t offset, stru
     (void) path;
     res = pread(fi->fh, buf, size, offset);
     if (res == -1)
+    {
         res = -ENOENT;
+    }
 
     remove(delete_read); // remove temporary read file
     return res;
@@ -217,7 +224,9 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
     res = pwrite(fi->fh, buf, size, offset);
 
     if (res == -1)
+    {
         res = -ENOENT;
+    }
 
     return res;
 }
