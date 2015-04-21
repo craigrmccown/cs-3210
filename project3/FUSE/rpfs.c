@@ -341,7 +341,7 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     file_path = malloc(strlen(file_path_base) + strlen(path));
     strcpy(file_path, file_path_base);
     strcat(file_path, path);
-    md5_create = str2md5(file_path,strlen(file_path)); 
+    md5_create = str2md5(path,strlen(path)); 
     stats = fopen("/tmp/rpfs/stats/create.txt", "a");
     dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "r");
 
@@ -358,34 +358,21 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     }
 
     fclose(dirlist);
-    log_message("1");
 
     dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
-    log_message("2");
     fprintf(dirlist, "%s,%i\n", path, 0);
-    log_message("3");
     fclose(dirlist);
-    log_message("4");
 
     f = fopen(file_path, "w");
-    log_message("5");
     fi->fh = (uint64_t)fileno(f);
-    log_message("6");
     free(file_path);
-    log_message("7");
 
     clock_gettime(USED_CLOCK,&current);
-    log_message("8");
     start = begin.tv_sec*NANOS + begin.tv_nsec;
-    log_message("9");
     elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
-    log_message("10");
     microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
-    log_message("11");
     fprintf(stats, "%lu\n", microseconds);
-    log_message("12");
     fclose(stats);
-    log_message("13");
 
     return 0;
 }
