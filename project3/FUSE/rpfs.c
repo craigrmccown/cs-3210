@@ -129,7 +129,6 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 {   
 
     clock_gettime(USED_CLOCK,&begin);
-    log_message("pfs_readdir");
     FILE *dirlist_ptr;
     FILE *stats;
     char *line = NULL;
@@ -168,7 +167,6 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 static int pfs_open(const char *path, struct fuse_file_info *fi)
 {
     clock_gettime(USED_CLOCK,&begin);
-    log_message("pfs_open");
     FILE *dirlist_ptr;
     FILE *read_ptr;
     FILE *stats;
@@ -239,7 +237,6 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
 static int pfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     clock_gettime(USED_CLOCK,&begin);
-    log_message("pfs_read");
     FILE *stats;
     char *delete_read_path = "/tmp/rpfs/read/";
     char delete_read[100];
@@ -271,7 +268,6 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
 {
     clock_gettime(USED_CLOCK,&begin);
     FILE *stats;
-    log_message("pfs_write");
     int res;
 
     stats = fopen("/tmp/rpfs/stats/write.txt", "a");
@@ -302,7 +298,6 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
  */
 void pfs_destroy(void *userdata)
 {
-    log_message("pfs_destroy");
     remove("/tmp/rpfs/dir/dirlist.txt");
     remove("/tmp/rpfs/stats/getattr.txt"); 
     remove("/tmp/rpfs/stats/open.txt");
@@ -323,7 +318,6 @@ void pfs_destroy(void *userdata)
 int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
 {
     clock_gettime(USED_CLOCK,&begin);
-    log_message("pfs_create");
     FILE* dirlist;
     FILE* f;
     FILE* stats;
@@ -352,7 +346,6 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
         md5_check = strtok(NULL, delim);
         if(strcmp(md5_create,md5_check) == 0)
         {
-            log_message("Duplicate hash.");
             return -ENOENT;
         }
     }
@@ -380,7 +373,6 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
 /** Remove a file */
 int pfs_unlink(const char *path)
 {
-    log_message("pfs_unlink");
     int retstat = 0;
     char *remove_path = "/tmp/rpfs/unlink/";
     char remove[100];
@@ -403,7 +395,6 @@ void *pfs_init(struct fuse_conn_info *conn)
 
 int pfs_release(const char *path, struct fuse_file_info *fi)
 {
-    log_message("pfs_release");
     int retstat = 0;
 
     retstat = close(fi->fh);
@@ -427,7 +418,6 @@ static struct fuse_operations pfs_oper = {
 
 int main(int argc, char *argv[])
 {
-    log_message("main");
     FILE* dirlist;
 
     //Init tmp directories for DB communication
