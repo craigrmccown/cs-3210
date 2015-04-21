@@ -15,6 +15,11 @@
 #else
 #  include <openssl/md5.h>
 #endif
+#define USED_CLOCK CLOCK_PROCESS_CPUTIME_ID
+#define NANOS 1000000000LL
+
+struct timespec begin, current;
+long start,elapsed,microseconds;
 
 //MD5 Algo
 char *str2md5(const char *str, int length)
@@ -56,9 +61,9 @@ void log_message(const char* message)
 //Start FUSE code
 static int pfs_getattr(const char *path, struct stat *stbuf)
 {
-    log_message("pfs_getattr");
-
+    clock_gettime(USED_CLOCK,&begin);
     FILE *dirlist_ptr;
+    FILE *stats;
     char *line = NULL;
     char *token = NULL;
     char delim[2] = ",";
@@ -68,7 +73,8 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
     int found_file = 0;
     ssize_t len = 0;
     ssize_t read;
-
+    
+    stats = fopen("/tmp/rpfs/stats/getattr.txt", "a");
     memset(stbuf, 0, sizeof(struct stat));
     
     if (strcmp(path, "/") == 0)
@@ -109,13 +115,23 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
         res = -ENOENT;
     }
 
+    clock_gettime(USED_CLOCK,&current);
+    start = begin.tv_sec*NANOS + begin.tv_nsec;
+    elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+    microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+    fprintf(stats, "%lu\n", microseconds);
+    fclose(stats);
+
     return res;
 }
 
 static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
-{
+{   
+
+    clock_gettime(USED_CLOCK,&begin);
     log_message("pfs_readdir");
     FILE *dirlist_ptr;
+    FILE *stats;
     char *line = NULL;
     char *token = NULL;
     char delim[2] = ",";
@@ -124,7 +140,7 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
     filler(buf, ".", NULL, 0); // filler function formats our provided strings for an ls command
     filler(buf, "..", NULL, 0);
-
+    stats = fopen("/tmp/rpfs/stats/readdir.txt", "a");
     dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
 
     if (dirlist_ptr == NULL)
@@ -138,6 +154,12 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
         filler(buf, token + 1, NULL, 0); // hack to remove slash
     }
 
+    clock_gettime(USED_CLOCK,&current);
+    start = begin.tv_sec*NANOS + begin.tv_nsec;
+    elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+    microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+    fprintf(stats, "%lu\n", microseconds);
+    fclose(stats);
     fclose(dirlist_ptr);
 
     return 0;
@@ -145,9 +167,11 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
 static int pfs_open(const char *path, struct fuse_file_info *fi)
 {
+    clock_gettime(USED_CLOCK,&begin);
     log_message("pfs_open");
     FILE *dirlist_ptr;
     FILE *read_ptr;
+    FILE *stats;
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     ssize_t read;
     char *line = NULL;
@@ -167,6 +191,7 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
     strcpy(py_name, py_path);       // building full path to temporary file
     strcpy(read_name, read_path);   // building full path to actual file
     dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
+    stats = fopen("/tmp/rpfs/open.txt", "a");
 
     while (((read = getline(&line, &len, dirlist_ptr)) != -1) && not_done) // while we are still getting line data
     {
@@ -180,37 +205,47 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
             not_done = 0;                       // we done
         }
     }
-        //read file from tmp/rpfs/read
-        not_done = 1;
-        while (not_done && count < 50) // keep looping and checking for existence of file
-        {
-            sleep(1);
-            fd_read = open(read_name, fi->flags);
-            if (fd_read != -1)
-            {
-                not_done = 0;
-                fi->fh = fd_read;
-            }
-            count++;
-        }
-    
-        if(not_done)
-        {
-            fclose(dirlist_ptr);
-            return -ENOENT;
-        }
 
-    fclose(dirlist_ptr);
+    //read file from tmp/rpfs/read
+    not_done = 1;
+    while (not_done && count < 50) // keep looping and checking for existence of file
+    {
+        sleep(1);
+        fd_read = open(read_name, fi->flags);
+        if (fd_read != -1)
+        {
+            not_done = 0;
+            fi->fh = fd_read;
+        }
+        count++;
+    }
+
+    if(not_done)
+    {
+        fclose(dirlist_ptr);
+        return -ENOENT;
+    }
+
+    clock_gettime(USED_CLOCK,&current);
+    start = begin.tv_sec*NANOS + begin.tv_nsec;
+    elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+    microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+    fprintf(stats, "%lu\n", microseconds);
+    fclose(stats);
+
     return 0;
 }
 
 static int pfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    clock_gettime(USED_CLOCK,&begin);
     log_message("pfs_read");
+    FILE *stats;
     char *delete_read_path = "/tmp/rpfs/read/";
     char delete_read[100];
     int res;
 
+    stats = fopen("/tmp/rpfs/stats/read.txt", "a");
     strcpy(delete_read, delete_read_path);
     strcat(delete_read, path); // building absolute path to remove the temporary read file
 
@@ -221,15 +256,25 @@ static int pfs_read(const char *path, char *buf, size_t size, off_t offset, stru
         res = -ENOENT;
     }
 
+    clock_gettime(USED_CLOCK,&current);
+    start = begin.tv_sec*NANOS + begin.tv_nsec;
+    elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+    microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+    fprintf(stats, "%lu\n", microseconds);
+    fclose(stats);
+
     remove(delete_read); // remove temporary read file
     return res;
 }
 
 int pfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    clock_gettime(USED_CLOCK,&begin);
+    FILE *stats;
     log_message("pfs_write");
     int res;
 
+    stats = fopen("/tmp/rpfs/stats/write.txt", "a");
     (void) path;
     res = pwrite(fi->fh, buf, size, offset);
 
@@ -237,6 +282,13 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
     {
         res = -ENOENT;
     }
+
+    clock_gettime(USED_CLOCK,&current);
+    start = begin.tv_sec*NANOS + begin.tv_nsec;
+    elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+    microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+    fprintf(stats, "%lu\n", microseconds);
+    fclose(stats);
 
     return res;
 }
@@ -252,20 +304,29 @@ void pfs_destroy(void *userdata)
 {
     log_message("pfs_destroy");
     remove("/tmp/rpfs/dir/dirlist.txt");
+    remove("/tmp/rpfs/stats/getattr.txt"); 
+    remove("/tmp/rpfs/stats/open.txt");
+    remove("/tmp/rpfs/stats/read.txt");
+    remove("/tmp/rpfs/stats/readdir.txt");
+    remove("/tmp/rpfs/stats/write.txt");
+    remove("/tmp/rpfs/stats/create.txt");
     rmdir("/tmp/rpfs/pyreadpath");
     rmdir("/tmp/rpfs/read");
     rmdir("/tmp/rpfs/write");
     rmdir("/tmp/rpfs/dir");
     rmdir("/tmp/rpfs/unlink");
+    rmdir("/tmp/rpfs/stats");
     rmdir("/tmp/rpfs");
     return;
 }
 
 int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
 {
+    clock_gettime(USED_CLOCK,&begin);
     log_message("pfs_create");
     FILE* dirlist;
     FILE* f;
+    FILE* stats;
     char* file_path_base = "/tmp/rpfs/write";
     char* file_path;
     char *md5_create;
@@ -281,8 +342,9 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     strcpy(file_path, file_path_base);
     strcat(file_path, path);
     md5_create = str2md5(file_path,strlen(file_path)); 
-
+    stats = fopen("/tmp/rpfs/stats/create.txt", "a");
     dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
+
     while ((read = getline(&line, &len, dirlist)) != -1) // while we are still getting line data
     {
         token = strtok(line, delim); // token = file name
@@ -295,12 +357,17 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
         }
     }
 
-    fprintf(dirlist, "%s,%i,%s\n", path, 0, md5_create);
+    fprintf(dirlist, "%s,%i\n", path, 0);
     fclose(dirlist);
     f = fopen(file_path, "w");
     fi->fh = (uint64_t)fileno(f);
-
     free(file_path);
+    clock_gettime(USED_CLOCK,&current);
+    start = begin.tv_sec*NANOS + begin.tv_nsec;
+    elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
+    microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+    fprintf(stats, "%lu\n", microseconds);
+    fclose(stats);
 
     return 0;
 }
@@ -367,6 +434,13 @@ int main(int argc, char *argv[])
     mkdir("/tmp/rpfs/unlink", 0777); //files to remove placed here by FUSE, title is file to remove
     dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "w");
     fclose(dirlist);
+    mkdir("/tmp/rpfs/stats", 0777);
+    fclose(fopen("/tmp/rpfs/stats/getattr.txt", "w")); // create statistics files
+    fclose(fopen("/tmp/rpfs/stats/open.txt", "w"));
+    fclose(fopen("/tmp/rpfs/stats/read.txt", "w"));
+    fclose(fopen("/tmp/rpfs/stats/readdir.txt", "w"));
+    fclose(fopen("/tmp/rpfs/stats/write.txt", "w"));
+    fclose(fopen("/tmp/rpfs/stats/create.txt", "w"));
 
     if ((argc < 2) || (argv[argc - 1][0] == '-')) // abort if there are less than 2 provided argument or if the path starts with a hyphen (breaks)
     {
