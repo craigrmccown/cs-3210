@@ -343,7 +343,7 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     strcat(file_path, path);
     md5_create = str2md5(file_path,strlen(file_path)); 
     stats = fopen("/tmp/rpfs/stats/create.txt", "a");
-    dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
+    dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "r");
 
     while ((read = getline(&line, &len, dirlist)) != -1) // while we are still getting line data
     {
@@ -357,11 +357,16 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
         }
     }
 
+    fclose(dirlist);
+
+    dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
     fprintf(dirlist, "%s,%i\n", path, 0);
     fclose(dirlist);
+
     f = fopen(file_path, "w");
     fi->fh = (uint64_t)fileno(f);
     free(file_path);
+
     clock_gettime(USED_CLOCK,&current);
     start = begin.tv_sec*NANOS + begin.tv_nsec;
     elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
