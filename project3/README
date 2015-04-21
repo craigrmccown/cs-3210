@@ -1,0 +1,22 @@
+Installation / Setup instructions
+System dependencies:
+    redis-server
+    mongodb-10gen
+    libfuse-dev
+    libssh-dev
+    pkg-config
+
+Installing python dependencies:
+    pip install -r requirements.pip
+
+Deployment:
+    cd FUSE
+    make
+    ./rpfs mountdir
+    cd ../master_node
+    ./deploy.sh <master node port>
+    cd ../slave_node
+    ./replication_worker.sh
+
+    For each slave node:
+        ./deploy.sh <master node ip address> <master node port> <slave node port>
