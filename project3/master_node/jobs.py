@@ -77,6 +77,37 @@ def write_files():
         os.remove(write_path)
 
 
+def remove_files():
+    remove_path_base = '/tmp/rpfs/unlink'
+    to_be_removed = os.listdir(remove_path_base)
+    to_be_removed = filter(lambda p: os.path.isfile(os.path.join(remove_path_base, p)), to_be_removed)
+
+    if len(to_be_removed) == 0:
+        return
+
+    topology = list(db.topology.find())
+
+    if len(topology) == 0:
+        update_dirlist()
+
+        for filename in to_be_removed:
+            os.remove(os.path.join(remove_path_base, filename))
+
+        return
+
+    sorted_v_node_ids, v_node_map = build_topology_maps(topology)
+
+    for filename in to_be_removed:
+        hash_ring_id = generate_hash_ring_id(filename)
+        next_v_node_index = get_next_v_node_id_index(hash_ring_id, sorted_v_node_ids)
+        next_node = v_node_map[sorted_v_node_ids[next_v_node_index]]
+
+        requests.delete(build_url_from_node(next_node) + '/files/' + str(hash_ring_id))
+        db.files.remove({'filename': filename})
+        update_dirlist()
+        os.remove(os.path.join(remove_path_base, filename))
+
+
 def read_files():
     readpath_path_base = '/tmp/rpfs/pyreadpath'
     read_path_base = '/tmp/rpfs/read'
