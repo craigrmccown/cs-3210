@@ -114,8 +114,14 @@ def read_files():
     jobs.read_files()
 
 
+def remove_files():
+    threading.Timer(.5, remove_files).start()
+    jobs.remove_files()
+
+
 if __name__ == '__main__':
     check_heartbeats()
     write_files()
     read_files()
+    remove_files()
     app.run(lan_address, port_number)
