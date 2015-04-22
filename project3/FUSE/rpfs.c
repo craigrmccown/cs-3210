@@ -61,6 +61,7 @@ void log_message(const char* message)
 //Start FUSE code
 static int pfs_getattr(const char *path, struct stat *stbuf)
 {
+    log_message("pfs_getattr");
     clock_gettime(USED_CLOCK,&begin);
     FILE *dirlist_ptr;
     FILE *stats;
@@ -127,7 +128,7 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
 
 static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {   
-
+    log_message("pfs_readdir");
     clock_gettime(USED_CLOCK,&begin);
     FILE *dirlist_ptr;
     FILE *stats;
@@ -166,111 +167,141 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
 static int pfs_open(const char *path, struct fuse_file_info *fi)
 {
+    log_message("pfs_open");
     clock_gettime(USED_CLOCK,&begin);
+
     FILE *dirlist_ptr;
+    FILE *py_read_ptr;
     FILE *read_ptr;
     FILE *stats;
-    mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    ssize_t read;
-    char *line = NULL;
-    char *name_token = NULL;
-    char py_name[100];      // string for python to query db with
-    char read_name[100];    // string for FUSE to grab file name for read directory
-    char write_name[100];   // string for FUSE to grab file name for write directory
-    char *py_path = "/tmp/rpfs/pyreadpath/";
-    char *read_path = "/tmp/rpfs/read/";
-    char *write_path = "/tmp/rpfs/write/";
+    size_t bytes_read;
+    char *line;
+    size_t len;
+    char *name_token;
+    char *py_read_path_base = "/tmp/rpfs/pyreadpath/";
+    char *read_path_base = "/tmp/rpfs/read/";
+    char *py_read_path;
+    char *read_path;
     char line_delim[2] = ",";
-    size_t len = 0;
-    int not_done = 1;
+    int found_file = 0;
     int count = 0;
-    int fd_read;
 
-    strcpy(py_name, py_path);       // building full path to temporary file
-    strcpy(read_name, read_path);   // building full path to actual file
     dirlist_ptr = fopen("/tmp/rpfs/dir/dirlist.txt", "r"); // expecting this file to exist by default
-    stats = fopen("/tmp/rpfs/open.txt", "a");
 
-    while (((read = getline(&line, &len, dirlist_ptr)) != -1) && not_done) // while we are still getting line data
+    while ((bytes_read = getline(&line, &len, dirlist_ptr)) != -1) // while we are still getting line data
     {
         name_token = strtok(line, line_delim);  // name_token = file name
+
         if (strcmp(path, name_token) == 0)
         {
-            strcat(py_name, name_token);
-            strcat(read_name, name_token);      // finish building read path here since we have file name
-            read_ptr = fopen(py_name, "w");     // write empty file with file name we need from db to /tmp/rpfs/pyreadpath
-            fclose(read_ptr);                   // just needed to create the file
-            not_done = 0;                       // we done
+            py_read_path = malloc(strlen(py_read_path_base) + strlen(path));
+            strcpy(py_read_path, py_read_path_base);
+            strcat(py_read_path, path);
+            py_read_ptr = fopen(py_read_path, "w");     // write empty file with file name we need from db to /tmp/rpfs/pyreadpath
+            fclose(py_read_ptr);                   // just needed to create the file
+            free(py_read_path);
+
+            break;
         }
     }
 
-    //read file from tmp/rpfs/read
-    not_done = 1;
-    while (not_done && count < 50) // keep looping and checking for existence of file
+    log_message("before if");
+    if (len == 0)
     {
-        sleep(1);
-        fd_read = open(read_name, fi->flags);
-        if (fd_read != -1)
-        {
-            not_done = 0;
-            fi->fh = fd_read;
-        }
-        count++;
-    }
-
-    if(not_done)
-    {
+        log_message("if");
         fclose(dirlist_ptr);
         return -ENOENT;
     }
+    log_message("after if");
+
+    read_path = malloc(strlen(read_path_base) + strlen(path));
+    strcpy(read_path, read_path_base);
+    strcat(read_path, path);
+
+    while (count < 3) // keep looping and checking for existence of file
+    {
+        log_message("loop");
+        sleep(1);
+        read_ptr = fopen(read_path, "r");
+
+        if (read_ptr != NULL)
+        {
+            found_file = 1;
+            fi->fh = fileno(read_ptr);
+
+            break;
+        }
+
+        count++;
+    }
+
+    free(read_path);
+
+    log_message("before check found_file");
+    if (!found_file)
+    {
+        log_message("file not found");
+        fclose(read_ptr);
+        fclose(dirlist_ptr);
+        return -ENOENT;
+    }
+    log_message("after check found_file");
 
     clock_gettime(USED_CLOCK,&current);
     start = begin.tv_sec*NANOS + begin.tv_nsec;
     elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
     microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+
+    stats = fopen("/tmp/rpfs/stats/open.txt", "a");
     fprintf(stats, "%lu\n", microseconds);
     fclose(stats);
 
+    log_message("end pfs_open");
     return 0;
 }
 
 static int pfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    log_message("pfs_read");
     clock_gettime(USED_CLOCK,&begin);
     FILE *stats;
-    char *delete_read_path = "/tmp/rpfs/read/";
-    char delete_read[100];
+    char *read_path_base = "/tmp/rpfs/read/";
+    char *read_path;
     int res;
 
-    stats = fopen("/tmp/rpfs/stats/read.txt", "a");
-    strcpy(delete_read, delete_read_path);
-    strcat(delete_read, path); // building absolute path to remove the temporary read file
+    read_path = malloc(strlen(read_path_base) + strlen(path));
+    strcpy(read_path, read_path_base);
+    strcat(read_path, path);
 
-    (void) path;
     res = pread(fi->fh, buf, size, offset);
+
     if (res == -1)
     {
         res = -ENOENT;
     }
 
+    remove(read_path);
+    free(read_path);
+
     clock_gettime(USED_CLOCK,&current);
     start = begin.tv_sec*NANOS + begin.tv_nsec;
     elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
     microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+
+    stats = fopen("/tmp/rpfs/stats/read.txt", "a");
     fprintf(stats, "%lu\n", microseconds);
     fclose(stats);
 
-    remove(delete_read); // remove temporary read file
     return res;
 }
 
 int pfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    log_message("pfs_write");
     clock_gettime(USED_CLOCK,&begin);
     FILE *stats;
     int res;
 
-    stats = fopen("/tmp/rpfs/stats/write.txt", "a");
     (void) path;
     res = pwrite(fi->fh, buf, size, offset);
 
@@ -283,6 +314,8 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
     start = begin.tv_sec*NANOS + begin.tv_nsec;
     elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
     microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+
+    stats = fopen("/tmp/rpfs/stats/write.txt", "a");
     fprintf(stats, "%lu\n", microseconds);
     fclose(stats);
 
@@ -298,6 +331,7 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
  */
 void pfs_destroy(void *userdata)
 {
+    log_message("pfs_destroy");
     remove("/tmp/rpfs/dir/dirlist.txt");
     remove("/tmp/rpfs/stats/getattr.txt"); 
     remove("/tmp/rpfs/stats/open.txt");
@@ -317,9 +351,10 @@ void pfs_destroy(void *userdata)
 
 int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
 {
+    log_message("pfs_create");
     clock_gettime(USED_CLOCK,&begin);
+    FILE* create_file;
     FILE* dirlist;
-    FILE* f;
     FILE* stats;
     char* file_path_base = "/tmp/rpfs/write";
     char* file_path;
@@ -332,11 +367,8 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     ssize_t read;
     int psize = 0;
 
-    file_path = malloc(strlen(file_path_base) + strlen(path));
-    strcpy(file_path, file_path_base);
-    strcat(file_path, path);
+    /*
     md5_create = str2md5(path,strlen(path)); 
-    stats = fopen("/tmp/rpfs/stats/create.txt", "a");
     dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "r");
 
     while ((read = getline(&line, &len, dirlist)) != -1) // while we are still getting line data
@@ -344,6 +376,7 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
         token = strtok(line, delim); // token = file name
         psize = atoi(strtok(NULL, delim));
         md5_check = strtok(NULL, delim);
+
         if(strcmp(md5_create,md5_check) == 0)
         {
             return -ENOENT;
@@ -351,50 +384,69 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
     }
 
     fclose(dirlist);
+    */
 
     dirlist = fopen("/tmp/rpfs/dir/dirlist.txt", "a");
     fprintf(dirlist, "%s,%i\n", path, 0);
     fclose(dirlist);
 
-    f = fopen(file_path, "w");
-    fi->fh = (uint64_t)fileno(f);
+    file_path = malloc(strlen(file_path_base) + strlen(path));
+    strcpy(file_path, file_path_base);
+    strcat(file_path, path);
+
+    create_file = fopen(file_path, "w");
+    fi->fh = fileno(create_file);
     free(file_path);
 
     clock_gettime(USED_CLOCK,&current);
     start = begin.tv_sec*NANOS + begin.tv_nsec;
     elapsed = current.tv_sec*NANOS + current.tv_nsec - start;
     microseconds = elapsed / 1000 + (elapsed % 1000 >= 500);
+
+    stats = fopen("/tmp/rpfs/stats/create.txt", "a");
     fprintf(stats, "%lu\n", microseconds);
     fclose(stats);
 
     return 0;
 }
 
-/** Remove a file */
+/* Remove a file */
 int pfs_unlink(const char *path)
 {
-    int retstat = 0;
-    char *remove_path = "/tmp/rpfs/unlink/";
-    char remove[100];
+    log_message("pfs_unlink");
+    char *remove_path_base = "/tmp/rpfs/unlink";
+    char *remove_path;
     FILE *remove_ptr;
 
-    strcpy(remove, remove_path);
-    strcat(remove, path);
+    log_message("malloc");
+    remove_path = malloc(strlen(remove_path_base) + strlen(path));
+    log_message("strcpy");
+    strcpy(remove_path, remove_path_base);
+    log_message("strcat");
+    strcat(remove_path, path);
 
-    remove_ptr = fopen(remove, "w");
+    log_message(remove_path);
+    log_message("fopen");
+    remove_ptr = fopen(remove_path, "w");
+    log_message("fclose");
     fclose(remove_ptr); // just need to create the file
 
-    return retstat;
+    log_message("free");
+    free(remove_path);
+    log_message("end");
+
+    return 0;
 }
 
 void *pfs_init(struct fuse_conn_info *conn)
 {
-    printf("ya boi, out here, mounting programs");
+    log_message("pfs_init");
     return;
 }
 
 int pfs_release(const char *path, struct fuse_file_info *fi)
 {
+    log_message("pfs_release");
     int retstat = 0;
 
     retstat = close(fi->fh);
