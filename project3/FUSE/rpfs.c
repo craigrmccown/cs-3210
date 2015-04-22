@@ -61,7 +61,6 @@ void log_message(const char* message)
 //Start FUSE code
 static int pfs_getattr(const char *path, struct stat *stbuf)
 {
-    log_message("pfs_getattr");
     clock_gettime(USED_CLOCK,&begin);
     FILE *dirlist_ptr;
     FILE *stats;
@@ -128,7 +127,6 @@ static int pfs_getattr(const char *path, struct stat *stbuf)
 
 static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {   
-    log_message("pfs_readdir");
     clock_gettime(USED_CLOCK,&begin);
     FILE *dirlist_ptr;
     FILE *stats;
@@ -167,7 +165,6 @@ static int pfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
 static int pfs_open(const char *path, struct fuse_file_info *fi)
 {
-    log_message("pfs_open");
     clock_gettime(USED_CLOCK,&begin);
 
     FILE *dirlist_ptr;
@@ -205,14 +202,11 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
         }
     }
 
-    log_message("before if");
     if (len == 0)
     {
-        log_message("if");
         fclose(dirlist_ptr);
         return -ENOENT;
     }
-    log_message("after if");
 
     read_path = malloc(strlen(read_path_base) + strlen(path));
     strcpy(read_path, read_path_base);
@@ -220,7 +214,6 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
 
     while (count < 3) // keep looping and checking for existence of file
     {
-        log_message("loop");
         sleep(1);
         read_ptr = fopen(read_path, "r");
 
@@ -237,15 +230,12 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
 
     free(read_path);
 
-    log_message("before check found_file");
     if (!found_file)
     {
-        log_message("file not found");
         fclose(read_ptr);
         fclose(dirlist_ptr);
         return -ENOENT;
     }
-    log_message("after check found_file");
 
     clock_gettime(USED_CLOCK,&current);
     start = begin.tv_sec*NANOS + begin.tv_nsec;
@@ -256,13 +246,11 @@ static int pfs_open(const char *path, struct fuse_file_info *fi)
     fprintf(stats, "%lu\n", microseconds);
     fclose(stats);
 
-    log_message("end pfs_open");
     return 0;
 }
 
 static int pfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    log_message("pfs_read");
     clock_gettime(USED_CLOCK,&begin);
     FILE *stats;
     char *read_path_base = "/tmp/rpfs/read/";
@@ -297,7 +285,6 @@ static int pfs_read(const char *path, char *buf, size_t size, off_t offset, stru
 
 int pfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    log_message("pfs_write");
     clock_gettime(USED_CLOCK,&begin);
     FILE *stats;
     int res;
@@ -331,7 +318,6 @@ int pfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
  */
 void pfs_destroy(void *userdata)
 {
-    log_message("pfs_destroy");
     remove("/tmp/rpfs/dir/dirlist.txt");
     remove("/tmp/rpfs/stats/getattr.txt"); 
     remove("/tmp/rpfs/stats/open.txt");
@@ -351,7 +337,6 @@ void pfs_destroy(void *userdata)
 
 int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
 {
-    log_message("pfs_create");
     clock_gettime(USED_CLOCK,&begin);
     FILE* create_file;
     FILE* dirlist;
@@ -413,40 +398,29 @@ int pfs_create(const char* path, mode_t mode, struct fuse_file_info *fi)
 /* Remove a file */
 int pfs_unlink(const char *path)
 {
-    log_message("pfs_unlink");
     char *remove_path_base = "/tmp/rpfs/unlink";
     char *remove_path;
     FILE *remove_ptr;
 
-    log_message("malloc");
     remove_path = malloc(strlen(remove_path_base) + strlen(path));
-    log_message("strcpy");
     strcpy(remove_path, remove_path_base);
-    log_message("strcat");
     strcat(remove_path, path);
 
-    log_message(remove_path);
-    log_message("fopen");
     remove_ptr = fopen(remove_path, "w");
-    log_message("fclose");
     fclose(remove_ptr); // just need to create the file
 
-    log_message("free");
     free(remove_path);
-    log_message("end");
 
     return 0;
 }
 
 void *pfs_init(struct fuse_conn_info *conn)
 {
-    log_message("pfs_init");
     return;
 }
 
 int pfs_release(const char *path, struct fuse_file_info *fi)
 {
-    log_message("pfs_release");
     int retstat = 0;
 
     retstat = close(fi->fh);
